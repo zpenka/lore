@@ -79,31 +79,38 @@ func renderDetailView(m model) string {
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
 
-	// Body: turns
-	if len(m.turns) == 0 {
+	// Body: turns (filtered by visibility)
+	visible := m.visibleTurns()
+	if len(visible) == 0 {
 		b.WriteString(" (no turns to display)\n")
 	} else {
-		for i, t := range m.turns {
+		for i, t := range visible {
 			isSelected := (i == m.cursorDetail)
-			b.WriteString(renderTurnLine(t, isSelected))
+			fullIdx := m.visibleIndexToFullIndex(i)
+			b.WriteString(renderDetailTurnLine(t, isSelected, m.expandedTurns[fullIdx], m.width))
 			b.WriteByte('\n')
+			// Render expanded tool input if expanded
+			if t.kind == "tool" && m.expandedTurns[fullIdx] {
+				b.WriteString(renderExpandedToolInput(t, m.width))
+			}
 		}
 	}
 
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
-	b.WriteString(footerStyle.Render(" j/k scroll   q/esc back"))
+	b.WriteString(renderDetailFooter(m))
 	b.WriteByte('\n')
 
 	return b.String()
 }
 
-// renderTurnLine renders a single turn as a line.
-func renderTurnLine(t turn, selected bool) string {
+// renderDetailTurnLine renders a single turn as a line in detail view.
+func renderDetailTurnLine(t turn, selected bool, expanded bool, width int) string {
 	// Format:
-	// user   │ <text>
-	// asst   │ <text>
-	//        │ ▸ <tool>
+	// user     │ <text>
+	// asst     │ <text>
+	// thinking │ 〰 <text>
+	//          │ ▸ <tool>
 	var prefix string
 	var marker string
 	switch t.kind {
@@ -113,11 +120,14 @@ func renderTurnLine(t turn, selected bool) string {
 	case "asst":
 		prefix = " asst"
 		marker = "│"
+	case "thinking":
+		prefix = " think"
+		marker = "│ 〰"
 	case "tool":
-		prefix = "     "
+		prefix = "      "
 		marker = "│ ▸"
 	default:
-		prefix = "     "
+		prefix = "      "
 		marker = "│"
 	}
 
@@ -126,6 +136,40 @@ func renderTurnLine(t turn, selected bool) string {
 		return selectedStyle.Render(line)
 	}
 	return line
+}
+
+// renderExpandedToolInput renders the full input JSON for an expanded tool turn.
+func renderExpandedToolInput(t turn, width int) string {
+	if t.input == nil || len(t.input) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	for key, val := range t.input {
+		// Format each field on its own line with indentation
+		line := fmt.Sprintf("      │   %s: %v", key, val)
+		// Truncate to width if necessary
+		if len(line) > width {
+			line = line[:width-3] + "…"
+		}
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// renderDetailFooter renders the footer for detail view.
+func renderDetailFooter(m model) string {
+	thinkingLabel := "thinking"
+	if m.showThinking {
+		thinkingLabel = "hide thinking"
+	}
+	copyStatus := ""
+	if m.justCopied {
+		copyStatus = "  ✓ copied"
+	}
+	return footerStyle.Render(fmt.Sprintf(" j/k move   space expand   t %s   y copy   q/esc back%s",
+		thinkingLabel, copyStatus))
 }
 
 func renderHeader(m model) string {
