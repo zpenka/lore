@@ -129,6 +129,39 @@ func TestModel_NavigationIgnored_WhileLoading(t *testing.T) {
 	}
 }
 
+func TestModel_Init(t *testing.T) {
+	m := newModel("/some/dir")
+	cmd := m.Init()
+	if cmd == nil {
+		t.Fatal("Init returned nil cmd")
+	}
+	msg := cmd()
+	if _, ok := msg.(sessionsLoadedMsg); !ok {
+		t.Fatalf("Init cmd produced %T, want sessionsLoadedMsg", msg)
+	}
+}
+
+func TestLoadSessionsCmd(t *testing.T) {
+	cmd := loadSessionsCmd("/nonexistent/dir/for/testing")
+	if cmd == nil {
+		t.Fatal("loadSessionsCmd returned nil")
+	}
+	msg := cmd()
+	result, ok := msg.(sessionsLoadedMsg)
+	if !ok {
+		t.Fatalf("loadSessionsCmd produced %T, want sessionsLoadedMsg", msg)
+	}
+	// loadSessionsCmd returns a sessionsLoadedMsg with no error and empty slice for nonexistent dir
+	// (WalkDir doesn't error, it just walks zero files)
+	if result.err != nil {
+		t.Logf("Note: got error %v (acceptable for nonexistent dir)", result.err)
+	}
+	// sessions should be nil or empty
+	if result.sessions != nil && len(result.sessions) > 0 {
+		t.Errorf("sessions len = %d, want 0", len(result.sessions))
+	}
+}
+
 // helpers
 
 type errFake string

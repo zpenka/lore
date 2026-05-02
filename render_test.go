@@ -108,6 +108,57 @@ func TestView_GroupsByTimeBucket(t *testing.T) {
 	}
 }
 
+func TestPlural_Singular(t *testing.T) {
+	if plural(1) != "" {
+		t.Errorf("plural(1) = %q, want empty", plural(1))
+	}
+}
+
+func TestPlural_Plural(t *testing.T) {
+	if plural(0) != "s" {
+		t.Errorf("plural(0) = %q, want 's'", plural(0))
+	}
+	if plural(2) != "s" {
+		t.Errorf("plural(2) = %q, want 's'", plural(2))
+	}
+}
+
+func TestPadTrunc_NoTruncation(t *testing.T) {
+	result := padTrunc("hi", 10)
+	if result != "hi        " {
+		t.Errorf("padTrunc('hi', 10) = %q, want 'hi        '", result)
+	}
+}
+
+func TestPadTrunc_Truncate(t *testing.T) {
+	result := padTrunc("very-long-branch-name", 10)
+	// When truncating to 10, we take max-1=9 chars plus "…"
+	if result != "very-long…" {
+		t.Errorf("padTrunc with truncate = %q, want 'very-long…'", result)
+	}
+}
+
+func TestPadTrunc_TruncateWithMax1(t *testing.T) {
+	result := padTrunc("hi", 1)
+	if result != "h" {
+		t.Errorf("padTrunc('hi', 1) = %q, want 'h'", result)
+	}
+}
+
+func TestRenderDivider_SmallWidth(t *testing.T) {
+	result := renderDivider(2)
+	if result != strings.Repeat("─", 80) {
+		t.Errorf("renderDivider(2) should default to 80, got %d chars", len(result))
+	}
+}
+
+func TestRenderDivider_NormalWidth(t *testing.T) {
+	result := renderDivider(40)
+	if result != strings.Repeat("─", 40) {
+		t.Errorf("renderDivider(40) = %d chars, want 40", len(result))
+	}
+}
+
 // helpers
 
 func loadedModelWith(ss ...Session) model {
