@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Check formatting
+        run: |
+          gofmt -l . | tee /tmp/fmt.out && test ! -s /tmp/fmt.out
+
+      - name: Run vet
+        run: go vet ./...
+
+      - name: Run tests with coverage
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Check coverage threshold
+        run: |
+          # Check per-package coverage (exclude cmd/lore and lore.go integration functions)
+          python3 << 'EOSCRIPT'
+          import subprocess
+          import re
+          import sys
+
+          result = subprocess.run(['go', 'tool', 'cover', '-func=coverage.out'],
+                                 capture_output=True, text=True)
+
+          package_cov = {}
+          for line in result.stdout.split('\n'):
+              if not line.startswith('github.com/zpenka/lore'):
+                  continue
+              # Skip cmd/lore (thin wrapper) and lore.go integration functions
+              if 'cmd/lore' in line or ('/lore.go:' in line and ('Run' in line or 'defaultProjectsDir' in line)):
+                  continue
+
+              # Extract package name and coverage
+              match = re.search(r'/([^/]+)\.go.*?(\d+\.?\d*)%', line)
+              if match:
+                  pkg, cov = match.groups()
+                  cov = float(cov)
+                  if pkg not in package_cov or cov < package_cov[pkg]:
+                      package_cov[pkg] = cov
+
+          threshold = 80.0
+          failed = False
+          for pkg in sorted(package_cov.keys()):
+              cov = package_cov[pkg]
+              status = "PASS" if cov >= threshold else "FAIL"
+              print(f"{status}: package {pkg} has coverage {cov:.1f}%")
+              if cov < threshold:
+                  failed = True
+
+          sys.exit(1 if failed else 0)
+          EOSCRIPT
