@@ -189,3 +189,48 @@ func TestModel_ProjectMode_EnterOpensDetail(t *testing.T) {
 		t.Errorf("after enter: cmd should not be nil (should load detail)")
 	}
 }
+
+func TestRenderProjectView_Header(t *testing.T) {
+	now := time.Now()
+	m := loadedModelWith(
+		Session{ID: "a", CWD: "/myproj", Project: "myproj", Branch: "main", Slug: "s1", Timestamp: now},
+		Session{ID: "b", CWD: "/myproj", Project: "myproj", Branch: "feat", Slug: "s2", Timestamp: now.Add(-1 * time.Hour)},
+	)
+	m.mode = modeProject
+	m.projectCWD = "/myproj"
+	m.projectSessions = []Session{m.sessions[0], m.sessions[1]}
+	m.projectCursor = 0
+	m.width = 80
+
+	out := renderProjectView(m, now)
+	if !containsFold(out, "myproj") {
+		t.Errorf("project view missing project name:\n%s", out)
+	}
+	if !containsFold(out, "/myproj") {
+		t.Errorf("project view missing CWD:\n%s", out)
+	}
+	if !containsFold(out, "2") {
+		t.Errorf("project view missing session count:\n%s", out)
+	}
+}
+
+func TestRenderProjectView_BranchGrouping(t *testing.T) {
+	now := time.Now()
+	m := loadedModelWith(
+		Session{ID: "a", CWD: "/p", Project: "p", Branch: "main", Slug: "s1", Timestamp: now},
+		Session{ID: "b", CWD: "/p", Project: "p", Branch: "feat", Slug: "s2", Timestamp: now.Add(-1 * time.Hour)},
+	)
+	m.mode = modeProject
+	m.projectCWD = "/p"
+	m.projectSessions = []Session{m.sessions[0], m.sessions[1]}
+	m.projectCursor = 0
+	m.width = 80
+
+	out := renderProjectView(m, now)
+	if !containsFold(out, "main") {
+		t.Errorf("project view missing 'main' branch:\n%s", out)
+	}
+	if !containsFold(out, "feat") {
+		t.Errorf("project view missing 'feat' branch:\n%s", out)
+	}
+}

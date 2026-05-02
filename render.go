@@ -25,6 +25,8 @@ func (m model) View() string {
 		return renderListView(m)
 	case modeSearch:
 		return renderSearchView(m)
+	case modeProject:
+		return renderProjectView(m, time.Now())
 	}
 	return ""
 }

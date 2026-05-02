@@ -12,6 +12,7 @@ const (
 	modeList = iota
 	modeDetail
 	modeSearch
+	modeProject
 )
 
 // Search sub-modes

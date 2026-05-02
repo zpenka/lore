@@ -57,6 +57,11 @@ type model struct {
 	searchQuery   string      // Current search query text
 	searchResults []SearchHit // Results from last search
 	searchCursor  int         // Cursor position in search results
+
+	// Project view state
+	projectCWD      string    // The CWD this view is showing
+	projectSessions []Session // Pre-filtered subset by CWD
+	projectCursor   int       // Cursor row within the visible flat list
 }
 
 func newModel(projectsDir string) model {
@@ -136,6 +141,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleListKey(msg)
 	case modeSearch:
 		return m.handleSearchKey(msg)
+	case modeProject:
+		return m.handleProjectKey(msg)
 	}
 
 	return m, nil
@@ -171,6 +178,21 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "p":
 		if !m.loading {
 			m.filterMode = filterModeProject
+		}
+	case "P":
+		// Capital P: open project view for the selected session
+		if !m.loading && len(m.visibleSessions) > 0 {
+			selected := m.visibleSessions[m.cursor]
+			m.mode = modeProject
+			m.projectCWD = selected.CWD
+			// Filter the full session list (not visible list) to this CWD
+			m.projectSessions = nil
+			for _, s := range m.sessions {
+				if s.CWD == selected.CWD {
+					m.projectSessions = append(m.projectSessions, s)
+				}
+			}
+			m.projectCursor = 0
 		}
 	case "b":
 		if !m.loading {
@@ -311,6 +333,36 @@ func (m model) handleSearchEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyRunes:
 		// Append runes to query
 		m.searchQuery += string(msg.Runes)
+	}
+	return m, nil
+}
+
+// handleProjectKey handles keys in project mode
+func (m model) handleProjectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "esc":
+		// Return to list mode
+		m.mode = modeList
+		m.projectCWD = ""
+		m.projectSessions = nil
+		m.projectCursor = 0
+		return m, nil
+	case "j", "down":
+		if m.projectCursor < len(m.projectSessions)-1 {
+			m.projectCursor++
+		}
+	case "k", "up":
+		if m.projectCursor > 0 {
+			m.projectCursor--
+		}
+	case "enter", "l", "right":
+		// Open session detail
+		if len(m.projectSessions) > 0 {
+			m.detailLoading = true
+			selected := m.projectSessions[m.projectCursor]
+			m.detailSession = selected
+			return m, loadSessionDetailCmd(selected.Path)
+		}
 	}
 	return m, nil
 }
