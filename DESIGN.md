@@ -2,10 +2,12 @@
 
 A keyboard-driven TUI for browsing your Claude Code session history.
 
-> **Status:** design doc only. No code yet. This file lives in the directory the
-> tool will eventually occupy so it travels cleanly when we cut a separate repo.
+> **Status:** Phases 1–4 implemented (list, detail, search v1, project view, re-run).
+> The repo split (Phase 6) has happened — this is the standalone
+> `github.com/zpenka/lore` module. Phase 5 (SQLite FTS5, list-level fuzzy match,
+> cost/usage stats) is still future work. See [Phasing](#phasing) for status.
 >
-> **Working name:** `lore`. Final name still open — see [Name candidates](#name-candidates).
+> Name landed on `lore`.
 
 ---
 
@@ -36,47 +38,31 @@ Goal: do for your Claude history what `grit` does for git history.
 
 ---
 
-## Name candidates
+## Name candidates (historical)
+
+The name `lore` was picked from this short list:
 
 | Name | Why |
 |---|---|
-| **lore** | Your accumulated AI work history is your lore. Short, evocative. |
+| **lore** ← chosen | Your accumulated AI work history is your lore. Short, evocative. |
 | **recall** | Action verb — exactly what the tool does. |
 | **yarn** | A thread of conversation. Short, tactile. |
 | **trail** | Breadcrumbs through past sessions. |
 | **scrollback** | Terminal jargon, immediately legible to the target user. |
 
-The rest of this doc uses `lore` as a placeholder.
-
 ---
 
 ## Repo layout
 
-```
-grit/
-├── grit.go, engine_*.go, ...   # existing
-├── core/                       # existing shared parsers
-├── cmd/grit/                   # existing
-└── lore/                       # NEW — this directory
-    ├── DESIGN.md               # ← only file in this PR
-    ├── go.mod                  # later — module github.com/zpenka/lore
-    ├── cmd/lore/main.go        # later
-    └── *.go                    # later
-```
+`lore` lives in its own repo at `github.com/zpenka/lore`. The split happened
+early (Phase 6 in the original phasing). For an up-to-date file map of the
+current package, see `CLAUDE.md` → "Repo Layout".
 
-Why a nested directory with its own `go.mod` (later) rather than
-`cmd/lore` + sibling package in grit's module:
-
-- Eventual repo split is one command:
-  `git filter-repo --subdirectory-filter lore`. No untangling.
-- During shared development, `lore` can pull from `github.com/zpenka/grit/core`
-  via a `replace` directive, then swap to a pinned version (or fork the
-  parsers) at split time.
-- Keeps grit's `go.mod` from accumulating TUI deps that `lore` adds later
-  (fuzzy matchers, sqlite for FTS5, etc).
-
-Trade-off: with two `go.mod` files, `go test ./...` from the repo root won't
-recurse into `lore/`. Minor — CI just runs both modules.
+The original plan was to nest `lore` under `grit` and split with
+`git filter-repo --subdirectory-filter lore` once the design stabilized. In
+practice, the standalone repo was created up-front and the only carryover from
+grit was the diff-rendering / clipboard / fixture *patterns* — no shared
+module code (see [Tech / reuse from grit](#tech--reuse-from-grit)).
 
 ---
 
@@ -284,27 +270,39 @@ Nothing else. Stay lean.
 
 ## Phasing
 
-This PR is **Phase 0** — design doc only.
+| Phase | Deliverable | Status |
+|---|---|---|
+| 0 | `lore/DESIGN.md` (this file) | ✅ Done |
+| 1 | `cmd/lore/main.go`, package skeleton, **session list** (3.1) end-to-end against real `~/.claude/projects/` | ✅ Done |
+| 2 | **Session detail** (3.2) with collapsed tool calls and diff rendering | ✅ Done |
+| 3 | **Search** (3.3) v1 — linear scan | ✅ Done |
+| 4 | **Project view** (3.4) and **re-run** (3.5) | ✅ Done |
+| 5 | SQLite FTS5 index, list-level fuzzy matching, cost/usage stats panel | ⏳ Future |
+| 6 | Standalone `github.com/zpenka/lore` repo | ✅ Done |
 
-| Phase | Deliverable |
-|---|---|
-| 0 | `lore/DESIGN.md` (this file) |
-| 1 | `cmd/lore/main.go`, package skeleton, **session list** (3.1) end-to-end against real `~/.claude/projects/` |
-| 2 | **Session detail** (3.2) with collapsed tool calls and diff rendering |
-| 3 | **Search** (3.3) v1 — linear scan |
-| 4 | **Project view** (3.4) and **re-run** (3.5) |
-| 5 | SQLite FTS5 index, fuzzy matching, cost/usage stats panel |
-| 6 | `git filter-repo --subdirectory-filter lore` → `github.com/zpenka/lore` |
+Beyond the phased work, several quality-of-life items also landed:
+inline fuzzy ranking for the `p` / `b` filters, a `?` help overlay with
+mode-specific keybindings, per-mode viewport scrolling with edge-snap
+offsets, and one-shot flash messages for no-op keys.
 
 ---
 
-## Open questions before Phase 1
+## Open questions
 
-- **Final name.** lore / recall / yarn / trail / scrollback / something else.
-- **Cache strategy.** Read raw JSONL on every launch, or maintain
-  `~/.claude/lore/cache.db`? Lean default: raw read for v1, cache only when
-  measured slow.
-- **Write access.** Default: strictly read-only browser. Re-run (3.5) shells
-  out to `claude` rather than mutating any state under `~/.claude/`.
+Resolved during Phases 1–4:
+
+- **Final name.** Landed on `lore`.
+- **Write access.** Strictly read-only browser. Re-run (3.5) shells out to
+  `claude` via `tea.ExecProcess` and mutates no state under `~/.claude/`.
+- **Cache strategy** (v1). Raw JSONL read on every launch — fast enough in
+  practice. Revisit when Phase 5 lands the SQLite FTS5 index.
+
+Still open before Phase 5:
+
 - **Sidechain handling.** Sub-agent transcripts (`isSidechain: true`) — fold
   inline under the parent turn, or separate panel? Probably inline-collapsed.
+- **Cost/usage stats.** What dimensions do we want to slice on (project,
+  branch, day, model)? Surface as a side panel, or a dedicated mode?
+- **Re-run UX.** Currently lore exits when `claude` returns. Should we
+  re-enter the list instead? And should errors from the spawn be surfaced
+  rather than silently swallowed?
