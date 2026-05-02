@@ -167,11 +167,11 @@ func TestRenderFooter_DefaultFooter(t *testing.T) {
 	if !strings.Contains(out, "j/k move") {
 		t.Errorf("default footer missing 'j/k move':\n%s", out)
 	}
-	if !strings.Contains(out, "p project filter") {
-		t.Errorf("default footer missing 'p project filter':\n%s", out)
+	if !strings.Contains(out, "p filter project") {
+		t.Errorf("default footer missing 'p filter project':\n%s", out)
 	}
-	if !strings.Contains(out, "b branch filter") {
-		t.Errorf("default footer missing 'b branch filter':\n%s", out)
+	if !strings.Contains(out, "b filter branch") {
+		t.Errorf("default footer missing 'b filter branch':\n%s", out)
 	}
 }
 
@@ -222,8 +222,8 @@ func TestRenderFooter_ProjectFilterApplied(t *testing.T) {
 	if !strings.Contains(out, "filtered by project: gr") {
 		t.Errorf("project filter applied footer wrong:\n%s", out)
 	}
-	if !strings.Contains(out, "[esc] clear") {
-		t.Errorf("project filter applied footer missing '[esc] clear':\n%s", out)
+	if !strings.Contains(out, "esc clear") {
+		t.Errorf("project filter applied footer missing 'esc clear':\n%s", out)
 	}
 }
 
@@ -238,8 +238,8 @@ func TestRenderFooter_BranchFilterApplied(t *testing.T) {
 	if !strings.Contains(out, "filtered by branch: fi") {
 		t.Errorf("branch filter applied footer wrong:\n%s", out)
 	}
-	if !strings.Contains(out, "[esc] clear") {
-		t.Errorf("branch filter applied footer missing '[esc] clear':\n%s", out)
+	if !strings.Contains(out, "esc clear") {
+		t.Errorf("branch filter applied footer missing 'esc clear':\n%s", out)
 	}
 }
 
