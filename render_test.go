@@ -500,3 +500,86 @@ func TestSearchView_FooterSearchMode_Navigation(t *testing.T) {
 		t.Errorf("footer should show navigation hints: %s", out)
 	}
 }
+
+// Re-run view tests
+
+func TestRerunView_Header_IncludesSourceSlug(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeRerun
+	m.detailSession = Session{ID: "a", Slug: "my-session", Project: "proj", Branch: "main", CWD: "/home/test"}
+	m.rerunPrompt = "hello world"
+	m.rerunCWD = "/home/test"
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "re-run") {
+		t.Errorf("header should say 're-run': %s", out)
+	}
+	if !strings.Contains(out, "my-session") {
+		t.Errorf("header should show source slug: %s", out)
+	}
+}
+
+func TestRerunView_Body_ShowsPrompt(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeRerun
+	m.detailSession = Session{ID: "a", Slug: "test-slug", Project: "proj", Branch: "main", CWD: "/home/test"}
+	m.rerunPrompt = "hello world"
+	m.rerunCWD = "/home/test"
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "hello world") {
+		t.Errorf("body should show prompt: %s", out)
+	}
+	if !strings.Contains(out, "/home/test") {
+		t.Errorf("body should show cwd: %s", out)
+	}
+	if !strings.Contains(out, "prompt:") {
+		t.Errorf("body should have 'prompt:' label: %s", out)
+	}
+	if !strings.Contains(out, "cwd:") {
+		t.Errorf("body should have 'cwd:' label: %s", out)
+	}
+}
+
+func TestRerunView_Body_RendersBoxAroundPrompt(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeRerun
+	m.detailSession = Session{ID: "a", Slug: "test-slug", Project: "proj", Branch: "main", CWD: "/home/test"}
+	m.rerunPrompt = "hello world"
+	m.rerunCWD = "/home/test"
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "┌") || !strings.Contains(out, "─") || !strings.Contains(out, "┐") {
+		t.Errorf("body should have box top border: %s", out)
+	}
+	if !strings.Contains(out, "└") || !strings.Contains(out, "┘") {
+		t.Errorf("body should have box bottom border: %s", out)
+	}
+	if !strings.Contains(out, "│") {
+		t.Errorf("body should have box side borders: %s", out)
+	}
+}
+
+func TestRerunView_Footer_ShowsRunAndCancel(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeRerun
+	m.detailSession = Session{ID: "a", Slug: "test-slug", Project: "proj", Branch: "main", CWD: "/home/test"}
+	m.rerunPrompt = "hello world"
+	m.rerunCWD = "/home/test"
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "enter") || !strings.Contains(out, "run") {
+		t.Errorf("footer should show 'enter run': %s", out)
+	}
+	if !strings.Contains(out, "esc") || !strings.Contains(out, "cancel") {
+		t.Errorf("footer should show 'esc cancel': %s", out)
+	}
+}

@@ -27,6 +27,8 @@ func (m model) View() string {
 		return renderSearchView(m)
 	case modeProject:
 		return renderProjectView(m, time.Now())
+	case modeRerun:
+		return renderRerunView(m)
 	}
 	return ""
 }
@@ -172,7 +174,7 @@ func renderDetailFooter(m model) string {
 	if m.justCopied {
 		copyStatus = "  ✓ copied"
 	}
-	return footerStyle.Render(fmt.Sprintf(" j/k move   space expand   t %s   y copy   q/esc back%s",
+	return footerStyle.Render(fmt.Sprintf(" j/k move   space expand   t %s   y copy   r run   q/esc back%s",
 		thinkingLabel, copyStatus))
 }
 
@@ -356,4 +358,81 @@ func renderSearchView(m model) string {
 	b.WriteByte('\n')
 
 	return b.String()
+}
+
+// renderRerunView renders the re-run confirmation screen
+func renderRerunView(m model) string {
+	var b strings.Builder
+
+	// Header: "re-run · source: <slug>"
+	headerLine := fmt.Sprintf(" re-run · source: %s", m.detailSession.Slug)
+	b.WriteString(headerStyle.Render(headerLine))
+	b.WriteByte('\n')
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+
+	// Body: prompt section with box
+	b.WriteString(" prompt:\n")
+
+	// Render prompt in a box
+	boxWidth := m.width - 4 // Account for padding and borders
+	if boxWidth < 10 {
+		boxWidth = 10
+	}
+
+	// Top border
+	b.WriteString(" ┌" + strings.Repeat("─", boxWidth) + "┐\n")
+
+	// Split prompt into lines and render up to N lines
+	const maxLines = 5
+	promptLines := strings.Split(m.rerunPrompt, "\n")
+	renderedLines := 0
+	for _, line := range promptLines {
+		if renderedLines >= maxLines {
+			// Truncate with ...
+			b.WriteString(" │ " + truncatePromptLine("...", boxWidth-2) + "\n")
+			break
+		}
+		// Truncate line to box width
+		truncated := truncatePromptLine(line, boxWidth-2)
+		// Pad to box width
+		padded := truncated + strings.Repeat(" ", boxWidth-2-len(truncated))
+		b.WriteString(" │ " + padded + " │\n")
+		renderedLines++
+	}
+
+	// If we didn't fill maxLines, pad with empty lines
+	for renderedLines < maxLines && renderedLines < len(promptLines) {
+		padded := strings.Repeat(" ", boxWidth-2)
+		b.WriteString(" │ " + padded + " │\n")
+		renderedLines++
+	}
+
+	// Bottom border
+	b.WriteString(" └" + strings.Repeat("─", boxWidth) + "┘\n")
+
+	// CWD line
+	cwdLine := fmt.Sprintf(" cwd:    %s\n", m.rerunCWD)
+	b.WriteString(cwdLine)
+
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+
+	// Footer: "enter run   esc cancel"
+	b.WriteString(footerStyle.Render(" enter run   esc cancel"))
+	b.WriteByte('\n')
+
+	return b.String()
+}
+
+// truncatePromptLine truncates a line to a maximum length with ellipsis
+func truncatePromptLine(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	if maxLen <= 1 {
+		return string(runes[:maxLen])
+	}
+	return string(runes[:maxLen-1]) + "…"
 }
