@@ -163,12 +163,6 @@ func TestLoadSessionsCmd(t *testing.T) {
 	}
 }
 
-// helpers
-
-type errFake string
-
-func (e errFake) Error() string { return string(e) }
-
 func TestModel_ProjectFilterEntry_PressP(t *testing.T) {
 	m := loadedModel("a", "b")
 	next, _ := m.Update(keyMsg("p"))

@@ -35,7 +35,7 @@ func (m model) View() string {
 	b.WriteString(renderRows(m, time.Now()))
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
-	b.WriteString(footerStyle.Render(" j/k move   g/G top/bottom   q quit"))
+	b.WriteString(renderFooter(m))
 	b.WriteByte('\n')
 	return b.String()
 }
@@ -59,7 +59,7 @@ func renderDivider(width int) string {
 func renderRows(m model, now time.Time) string {
 	var b strings.Builder
 	var lastBucket string
-	for i, s := range m.sessions {
+	for i, s := range m.visibleSessions {
 		bucket := timeBucket(s.Timestamp, now)
 		if bucket != lastBucket {
 			b.WriteString(bucketStyle.Render(" " + bucket))
@@ -103,6 +103,32 @@ func plural(n int) string {
 		return ""
 	}
 	return "s"
+}
+
+func renderFooter(m model) string {
+	if m.filterMode == filterModeProject {
+		// In project filter entry mode
+		prompt := fmt.Sprintf("project filter: %s_  [enter] apply  [esc] cancel", m.filterText)
+		return footerStyle.Render(" " + prompt)
+	}
+	if m.filterMode == filterModeBranch {
+		// In branch filter entry mode
+		prompt := fmt.Sprintf("branch filter: %s_  [enter] apply  [esc] cancel", m.filterText)
+		return footerStyle.Render(" " + prompt)
+	}
+	if m.filterText != "" && m.appliedFilterMode != filterModeNone {
+		// Filter is applied, show clear option
+		if m.appliedFilterMode == filterModeProject {
+			prompt := fmt.Sprintf("filtered by project: %s  [esc] clear", m.filterText)
+			return footerStyle.Render(" " + prompt)
+		}
+		if m.appliedFilterMode == filterModeBranch {
+			prompt := fmt.Sprintf("filtered by branch: %s  [esc] clear", m.filterText)
+			return footerStyle.Render(" " + prompt)
+		}
+	}
+	// Default footer
+	return footerStyle.Render(" j/k move   g/G top/bottom   p project filter   b branch filter   q quit")
 }
 
 // padTrunc trims s to max display columns or right-pads it to fit.
