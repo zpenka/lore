@@ -575,23 +575,55 @@ func (m model) handleFilterEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) applyFilter() {
-	m.visibleSessions = nil
-	for _, s := range m.sessions {
-		if m.matchesFilter(s) {
-			m.visibleSessions = append(m.visibleSessions, s)
-		}
-	}
-}
+	filterText := strings.TrimSpace(m.filterText)
 
-func (m model) matchesFilter(s Session) bool {
-	filter := strings.ToLower(m.filterText)
+	// Empty filter shows all sessions
+	if filterText == "" {
+		m.visibleSessions = m.sessions
+		return
+	}
+
 	switch m.filterMode {
 	case filterModeProject:
-		return strings.Contains(strings.ToLower(s.Project), filter)
+		// Build candidate list of project names
+		var projects []string
+		for _, s := range m.sessions {
+			projects = append(projects, s.Project)
+		}
+		// Get fuzzy-ranked projects
+		rankedProjects := fuzzyFilterCandidates(filterText, projects)
+		// Map back to sessions in fuzzy rank order
+		projectMap := make(map[string]bool)
+		for _, p := range rankedProjects {
+			projectMap[p] = true
+		}
+		m.visibleSessions = nil
+		for _, s := range m.sessions {
+			if projectMap[s.Project] {
+				m.visibleSessions = append(m.visibleSessions, s)
+			}
+		}
 	case filterModeBranch:
-		return strings.Contains(strings.ToLower(s.Branch), filter)
+		// Build candidate list of branch names
+		var branches []string
+		for _, s := range m.sessions {
+			branches = append(branches, s.Branch)
+		}
+		// Get fuzzy-ranked branches
+		rankedBranches := fuzzyFilterCandidates(filterText, branches)
+		// Map back to sessions in fuzzy rank order
+		branchMap := make(map[string]bool)
+		for _, b := range rankedBranches {
+			branchMap[b] = true
+		}
+		m.visibleSessions = nil
+		for _, s := range m.sessions {
+			if branchMap[s.Branch] {
+				m.visibleSessions = append(m.visibleSessions, s)
+			}
+		}
 	default:
-		return true
+		m.visibleSessions = m.sessions
 	}
 }
 
