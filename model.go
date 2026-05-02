@@ -41,7 +41,7 @@ type model struct {
 	appliedFilterMode int // Track which mode filter was applied in (used for display)
 
 	// Detail view state
-	mode          int                // modeList or modeDetail
+	mode          int                // modeList, modeDetail, or modeSearch
 	detailSession Session            // The session being displayed in detail
 	turns         []turn             // Parsed turns from the session
 	cursorDetail  int                // Cursor position in detail view
@@ -51,6 +51,12 @@ type model struct {
 	showThinking  bool               // Whether thinking turns are visible
 	justCopied    bool               // Brief flag set after successful copy
 	clipboardFn   func(string) error // Dependency-injected clipboard function
+
+	// Search state
+	searchMode    int         // searchModeEntry or searchModeResults
+	searchQuery   string      // Current search query text
+	searchResults []SearchHit // Results from last search
+	searchCursor  int         // Cursor position in search results
 }
 
 func newModel(projectsDir string) model {
@@ -128,6 +134,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDetailKey(msg)
 	case modeList:
 		return m.handleListKey(msg)
+	case modeSearch:
+		return m.handleSearchKey(msg)
 	}
 
 	return m, nil
@@ -167,6 +175,14 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "b":
 		if !m.loading {
 			m.filterMode = filterModeBranch
+		}
+	case "/":
+		if !m.loading {
+			m.mode = modeSearch
+			m.searchMode = searchModeEntry
+			m.searchQuery = ""
+			m.searchResults = nil
+			m.searchCursor = 0
 		}
 	case "enter", "l", "right":
 		// Open session detail
@@ -257,6 +273,76 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+	}
+	return m, nil
+}
+
+// handleSearchKey handles keys in search mode
+func (m model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch m.searchMode {
+	case searchModeEntry:
+		return m.handleSearchEntryKey(msg)
+	case searchModeResults:
+		return m.handleSearchResultsKey(msg)
+	}
+	return m, nil
+}
+
+// handleSearchEntryKey handles keys while typing search query
+func (m model) handleSearchEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEnter:
+		// Run search
+		m.searchResults = searchSessions(m.sessions, m.searchQuery)
+		m.searchMode = searchModeResults
+		m.searchCursor = 0
+	case tea.KeyEsc:
+		// Cancel search, return to list
+		m.mode = modeList
+		m.searchQuery = ""
+		m.searchResults = nil
+		m.searchCursor = 0
+	case tea.KeyBackspace:
+		// Remove last rune from query
+		runes := []rune(m.searchQuery)
+		if len(runes) > 0 {
+			m.searchQuery = string(runes[:len(runes)-1])
+		}
+	case tea.KeyRunes:
+		// Append runes to query
+		m.searchQuery += string(msg.Runes)
+	}
+	return m, nil
+}
+
+// handleSearchResultsKey handles keys while viewing search results
+func (m model) handleSearchResultsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "j", "down":
+		if m.searchCursor < len(m.searchResults)-1 {
+			m.searchCursor++
+		}
+	case "k", "up":
+		if m.searchCursor > 0 {
+			m.searchCursor--
+		}
+	case "enter", "l", "right":
+		// Open detail view for selected result
+		if len(m.searchResults) > 0 {
+			m.detailLoading = true
+			selected := m.searchResults[m.searchCursor].Session
+			m.detailSession = selected
+			return m, loadSessionDetailCmd(selected.Path)
+		}
+	case "/":
+		// Re-enter search with query preserved
+		m.searchMode = searchModeEntry
+	case "esc":
+		// Return to list mode
+		m.mode = modeList
+		m.searchQuery = ""
+		m.searchResults = nil
+		m.searchCursor = 0
 	}
 	return m, nil
 }

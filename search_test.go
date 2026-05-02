@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestSearchSessions_EmptyQuery_ReturnsEmpty(t *testing.T) {
@@ -75,20 +74,20 @@ func TestSearchSessions_MatchesAssistantContent(t *testing.T) {
 func TestSearchSessions_SkipsToolUseBlocks(t *testing.T) {
 	tmpdir := t.TempDir()
 	session1 := writeTestSession(t, tmpdir, "sess1.jsonl", `
-{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"search for auth"}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","name":"search","input":{"query":"authentication system"}},{"type":"text","text":"found some results"}]}}
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"we need to fix authentication"}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"search","input":{"query":"authentication system"}},{"type":"text","text":"found something about authentication"}]}}
 `)
 
 	ss := []Session{
 		{ID: "1", Slug: "s1", Path: session1},
 	}
 	results := searchSessions(ss, "authentication")
-	// Should find in user content, but NOT in tool_use input
+	// Should find in user content and assistant text block, but NOT in tool_use input
 	if len(results) != 1 {
 		t.Fatalf("tool skip: got %d results, want 1", len(results))
 	}
-	if results[0].HitCount != 1 {
-		t.Errorf("HitCount = %d, want 1 (found only in user, not tool)", results[0].HitCount)
+	if results[0].HitCount != 2 {
+		t.Errorf("HitCount = %d, want 2 (user + asst text, not tool)", results[0].HitCount)
 	}
 }
 
@@ -283,4 +282,162 @@ func writeTestSession(t *testing.T, tmpdir, filename, content string) string {
 		t.Fatalf("write session: %v", err)
 	}
 	return path
+}
+
+func TestBuildSnippet_ShortText_NoTruncation(t *testing.T) {
+	text := "hello world"
+	snippet := buildSnippet(text, "world", 6)
+	if snippet != text {
+		t.Errorf("short text: got %q, want %q", snippet, text)
+	}
+	if len(snippet) > 80 {
+		t.Errorf("snippet length %d exceeds 80", len(snippet))
+	}
+}
+
+func TestBuildSnippet_LongText_MatchEarly(t *testing.T) {
+	text := "a very short match here and then more content and more content and more content at the end of the string"
+	// Match at position 20 (early, < 40)
+	snippet := buildSnippet(text, "match", 20)
+	if !strings.Contains(snippet, "match") {
+		t.Errorf("snippet missing match: %q", snippet)
+	}
+	if len(snippet) > 80 {
+		t.Errorf("snippet length %d exceeds 80", len(snippet))
+	}
+	// Match is early, should take first 80 chars and end with ...
+	if !strings.HasSuffix(snippet, "...") {
+		t.Errorf("snippet should end with ...: %q", snippet)
+	}
+}
+
+func TestBuildSnippet_LongText_MatchLate_Centered(t *testing.T) {
+	// Match at position 60+
+	text := strings.Repeat("a", 70) + "match" + strings.Repeat("b", 20)
+	snippet := buildSnippet(text, "match", 70)
+	if !strings.Contains(snippet, "match") {
+		t.Errorf("snippet missing match: %q", snippet)
+	}
+	if len(snippet) > 80 {
+		t.Errorf("snippet length %d exceeds 80", len(snippet))
+	}
+}
+
+func TestBuildSnippet_MatchAtStart(t *testing.T) {
+	text := "match is here at the start of a very long text that should be truncated when rendered"
+	snippet := buildSnippet(text, "match", 0)
+	if !strings.Contains(snippet, "match") {
+		t.Errorf("snippet missing match: %q", snippet)
+	}
+	if len(snippet) > 80 {
+		t.Errorf("snippet length %d exceeds 80", len(snippet))
+	}
+}
+
+func TestBuildSnippet_MatchAtEnd(t *testing.T) {
+	text := strings.Repeat("x", 50) + "this is a very long text that ends with match"
+	// Match is at position where we need centering
+	matchPos := len(text) - 5
+	snippet := buildSnippet(text, "match", matchPos)
+	if !strings.Contains(snippet, "match") {
+		t.Errorf("snippet missing match: %q", snippet)
+	}
+	if len(snippet) > 80 {
+		t.Errorf("snippet length %d exceeds 80", len(snippet))
+	}
+}
+
+func TestSearchSession_FileNotFound_ReturnsNil(t *testing.T) {
+	sess := Session{ID: "1", Slug: "s1", Path: "/nonexistent/file.jsonl"}
+	hit := searchSession(sess, "test")
+	if hit != nil {
+		t.Errorf("nonexistent file: got %v, want nil", hit)
+	}
+}
+
+func TestCountAndSnippet_NoMatch_ReturnsZero(t *testing.T) {
+	count, snippet := countAndSnippet("hello world", "xyz")
+	if count != 0 {
+		t.Errorf("no match: count = %d, want 0", count)
+	}
+	if snippet != "" {
+		t.Errorf("no match: snippet = %q, want ''", snippet)
+	}
+}
+
+func TestCountAndSnippet_CaseInsensitive(t *testing.T) {
+	count, _ := countAndSnippet("Hello WORLD", "hello")
+	if count != 1 {
+		t.Errorf("case insensitive: count = %d, want 1", count)
+	}
+}
+
+func TestCountAndSnippet_MultipleMatches(t *testing.T) {
+	count, _ := countAndSnippet("test test test", "test")
+	if count != 3 {
+		t.Errorf("multiple: count = %d, want 3", count)
+	}
+}
+
+func TestMatchUserEvent_StringContent(t *testing.T) {
+	ev := &rawEvent{
+		Type: "user",
+		Message: &rawMessage{
+			Content: "hello world",
+		},
+	}
+	hits, snippet := matchUserEvent(ev, "hello")
+	if hits != 1 {
+		t.Errorf("string content: hits = %d, want 1", hits)
+	}
+	if !strings.Contains(snippet, "hello") {
+		t.Errorf("string content: snippet missing match: %q", snippet)
+	}
+}
+
+func TestMatchUserEvent_ArrayContent(t *testing.T) {
+	ev := &rawEvent{
+		Type: "user",
+		Message: &rawMessage{
+			Content: []interface{}{
+				map[string]interface{}{"type": "text", "text": "hello"},
+				map[string]interface{}{"type": "text", "text": "world"},
+			},
+		},
+	}
+	hits, _ := matchUserEvent(ev, "hello")
+	if hits != 1 {
+		t.Errorf("array content: hits = %d, want 1", hits)
+	}
+}
+
+func TestMatchAssistantEvent_TextOnly(t *testing.T) {
+	ev := &rawEvent{
+		Type: "assistant",
+		Message: &rawMessage{
+			Content: []interface{}{
+				map[string]interface{}{"type": "text", "text": "hello there"},
+				map[string]interface{}{"type": "tool_use", "name": "Bash", "input": map[string]interface{}{}},
+			},
+		},
+	}
+	hits, _ := matchAssistantEvent(ev, "hello")
+	if hits != 1 {
+		t.Errorf("assistant text: hits = %d, want 1", hits)
+	}
+}
+
+func TestMatchAssistantEvent_SkipsThinking(t *testing.T) {
+	ev := &rawEvent{
+		Type: "assistant",
+		Message: &rawMessage{
+			Content: []interface{}{
+				map[string]interface{}{"type": "thinking", "thinking": "hello"},
+			},
+		},
+	}
+	hits, _ := matchAssistantEvent(ev, "hello")
+	if hits != 0 {
+		t.Errorf("skip thinking: hits = %d, want 0", hits)
+	}
 }

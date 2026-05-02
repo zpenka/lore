@@ -11,6 +11,13 @@ import (
 const (
 	modeList = iota
 	modeDetail
+	modeSearch
+)
+
+// Search sub-modes
+const (
+	searchModeEntry = iota
+	searchModeResults
 )
 
 // turn represents a single exchange in the detail view.

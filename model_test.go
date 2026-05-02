@@ -515,13 +515,13 @@ func TestModel_SearchEntry_AppendRune(t *testing.T) {
 	m := loadedModel("a", "b")
 	next, _ := m.Update(keyMsg("/"))
 	m = next.(model)
-	
+
 	next, _ = m.Update(keyMsg("t"))
 	m = next.(model)
 	if m.searchQuery != "t" {
 		t.Errorf("after 't': searchQuery = %q, want 't'", m.searchQuery)
 	}
-	
+
 	next, _ = m.Update(keyMsg("o"))
 	m = next.(model)
 	if m.searchQuery != "to" {
@@ -537,13 +537,13 @@ func TestModel_SearchEntry_Backspace(t *testing.T) {
 	m = next.(model)
 	next, _ = m.Update(keyMsg("i"))
 	m = next.(model)
-	
+
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
 	m = next.(model)
 	if m.searchQuery != "h" {
 		t.Errorf("after backspace: searchQuery = %q, want 'h'", m.searchQuery)
 	}
-	
+
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
 	m = next.(model)
 	if m.searchQuery != "" {
@@ -557,7 +557,7 @@ func TestModel_SearchEntry_Escape_ClearsAndReturnsToList(t *testing.T) {
 	m = next.(model)
 	next, _ = m.Update(keyMsg("x"))
 	m = next.(model)
-	
+
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m = next.(model)
 	if m.mode != modeList {
@@ -576,22 +576,22 @@ func TestModel_SearchEntry_Enter_RunsSearch(t *testing.T) {
 	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
 {"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello world"}}
 `)
-	
+
 	m := loadedModelWith(
 		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
 	)
 	m.width = 100
-	
+
 	next, _ := m.Update(keyMsg("/"))
 	m = next.(model)
 	next, _ = m.Update(keyMsg("h"))
 	m = next.(model)
 	next, _ = m.Update(keyMsg("e"))
 	m = next.(model)
-	
+
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = next.(model)
-	
+
 	if m.searchMode != searchModeResults {
 		t.Errorf("after enter: searchMode = %d, want %d (results)", m.searchMode, searchModeResults)
 	}
@@ -611,13 +611,13 @@ func TestModel_SearchResults_Navigate(t *testing.T) {
 	session2 := writeTestSessionForModel(t, tmpdir, "sess2.jsonl", `
 {"type":"user","sessionId":"2","timestamp":"2026-05-01T11:00:00Z","cwd":"/test","gitBranch":"main","slug":"s2","message":{"content":"hello"}}
 `)
-	
+
 	m := loadedModelWith(
 		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
 		Session{ID: "2", Slug: "s2", Path: session2, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T11:00:00Z")},
 	)
 	m.width = 100
-	
+
 	// Run search
 	next, _ := m.Update(keyMsg("/"))
 	m = next.(model)
@@ -625,17 +625,17 @@ func TestModel_SearchResults_Navigate(t *testing.T) {
 	m = next.(model)
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = next.(model)
-	
+
 	if len(m.searchResults) != 2 {
 		t.Fatalf("len(searchResults) = %d, want 2", len(m.searchResults))
 	}
-	
+
 	next, _ = m.Update(keyMsg("j"))
 	m = next.(model)
 	if m.searchCursor != 1 {
 		t.Errorf("after j: searchCursor = %d, want 1", m.searchCursor)
 	}
-	
+
 	next, _ = m.Update(keyMsg("k"))
 	m = next.(model)
 	if m.searchCursor != 0 {
@@ -648,12 +648,12 @@ func TestModel_SearchResults_PressSlash_ReEntersSearch(t *testing.T) {
 	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
 {"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
 `)
-	
+
 	m := loadedModelWith(
 		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
 	)
 	m.width = 100
-	
+
 	// Run search
 	next, _ := m.Update(keyMsg("/"))
 	m = next.(model)
@@ -661,11 +661,11 @@ func TestModel_SearchResults_PressSlash_ReEntersSearch(t *testing.T) {
 	m = next.(model)
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = next.(model)
-	
+
 	if m.searchMode != searchModeResults {
 		t.Fatalf("not in results mode")
 	}
-	
+
 	next, _ = m.Update(keyMsg("/"))
 	m = next.(model)
 	if m.searchMode != searchModeEntry {
@@ -681,12 +681,12 @@ func TestModel_SearchResults_Escape_ReturnsToList(t *testing.T) {
 	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
 {"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
 `)
-	
+
 	m := loadedModelWith(
 		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
 	)
 	m.width = 100
-	
+
 	// Run search
 	next, _ := m.Update(keyMsg("/"))
 	m = next.(model)
@@ -694,7 +694,7 @@ func TestModel_SearchResults_Escape_ReturnsToList(t *testing.T) {
 	m = next.(model)
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = next.(model)
-	
+
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m = next.(model)
 	if m.mode != modeList {
@@ -712,4 +712,90 @@ func writeTestSessionForModel(t *testing.T, tmpdir, filename, content string) st
 		t.Fatalf("write session: %v", err)
 	}
 	return path
+}
+
+// Additional search mode tests for coverage
+
+func TestModel_SearchResults_JKeyBounded(t *testing.T) {
+	tmpdir := t.TempDir()
+	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
+`)
+
+	m := loadedModelWith(
+		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+	)
+	m.width = 100
+
+	// Run search
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(model)
+
+	// Try to go beyond last result
+	next, _ = m.Update(keyMsg("j"))
+	m = next.(model)
+	if m.searchCursor != 0 {
+		t.Errorf("j beyond end: searchCursor = %d, want 0 (bounded)", m.searchCursor)
+	}
+}
+
+func TestModel_SearchResults_KKeyBounded(t *testing.T) {
+	tmpdir := t.TempDir()
+	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
+`)
+
+	m := loadedModelWith(
+		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+	)
+	m.width = 100
+
+	// Run search
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(model)
+
+	// Try to go before first result
+	next, _ = m.Update(keyMsg("k"))
+	m = next.(model)
+	if m.searchCursor != 0 {
+		t.Errorf("k at top: searchCursor = %d, want 0 (bounded)", m.searchCursor)
+	}
+}
+
+func TestModel_SearchResults_EnterEmpty_NoOp(t *testing.T) {
+	m := loadedModel("a", "b")
+	m.mode = modeSearch
+	m.searchMode = searchModeResults
+	m.searchResults = nil
+	m.searchCursor = 0
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	nm := next.(model)
+	if nm.mode != modeSearch {
+		t.Errorf("enter on empty results: mode = %d, want modeSearch", nm.mode)
+	}
+	if cmd != nil {
+		t.Errorf("enter on empty results: cmd = %v, want nil", cmd)
+	}
+}
+
+func TestModel_SearchEntry_EmptyBackspace_NoOp(t *testing.T) {
+	m := loadedModel("a", "b")
+	m.mode = modeSearch
+	m.searchMode = searchModeEntry
+	m.searchQuery = ""
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	nm := next.(model)
+	if nm.searchQuery != "" {
+		t.Errorf("backspace on empty: searchQuery = %q, want ''", nm.searchQuery)
+	}
 }
