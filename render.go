@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -114,9 +115,14 @@ func renderListView(m model) string {
 
 // ----- detail mode -----
 
-// detailBodyLines builds the rendered turn rows for detail mode plus
-// any expanded tool input lines, and returns the line index of the row
-// that holds the cursor's selected turn.
+// detailBodyLines builds the rendered turn rows for detail mode and
+// returns the line index of the FIRST visual row of the selected turn.
+//
+// Multi-line and over-width turn bodies are wrapped into multiple body
+// lines so viewport math matches what the terminal actually renders.
+// The first visual row of a turn carries the kind marker (` user │ `,
+// ` asst │ `, etc.); continuation rows use a blank-prefixed continuation
+// (`      │ `) that keeps the gutter aligned.
 func detailBodyLines(m model) (lines []string, cursorLine int) {
 	visible := m.visibleTurns()
 	for i, t := range visible {
@@ -126,14 +132,61 @@ func detailBodyLines(m model) (lines []string, cursorLine int) {
 		if isSelected {
 			cursorLine = len(lines)
 		}
-		lines = append(lines, renderDetailTurnLine(t, isSelected, expanded, m.width))
-		if t.kind == "tool" && expanded {
-			for _, ex := range expandedToolInputLines(t, m.width) {
-				lines = append(lines, ex)
+		for _, ln := range wrapTurnLines(t, expanded, m.width) {
+			if isSelected {
+				lines = append(lines, selectedStyle.Render(ln))
+			} else {
+				lines = append(lines, ln)
 			}
 		}
 	}
 	return
+}
+
+// wrapTurnLines flattens one turn into a slice of visual rows.
+func wrapTurnLines(t turn, expanded bool, width int) []string {
+	first, cont := turnPrefixes(t.kind)
+	avail := width - utf8.RuneCountInString(first)
+	if avail < 10 {
+		avail = 10
+	}
+	wrapped := wrapText(t.body, avail)
+	out := make([]string, 0, len(wrapped))
+	for i, line := range wrapped {
+		if i == 0 {
+			out = append(out, first+line)
+		} else {
+			out = append(out, cont+line)
+		}
+	}
+	if t.kind == "tool" && expanded {
+		// Render input as `key: value` rows under a continuation gutter,
+		// each row also wrapped to the same width.
+		for k, v := range t.input {
+			kv := fmt.Sprintf("  %s: %v", k, v)
+			for _, line := range wrapText(kv, avail) {
+				out = append(out, cont+line)
+			}
+		}
+	}
+	return out
+}
+
+// turnPrefixes returns the first-line and continuation-line gutters for
+// a given turn kind. Both are visually 8 columns wide (modulo the unicode
+// │ glyph) so wrapped continuation rows align with the marker column.
+func turnPrefixes(kind string) (first, cont string) {
+	switch kind {
+	case "user":
+		return " user │ ", "      │ "
+	case "asst":
+		return " asst │ ", "      │ "
+	case "thinking":
+		return " think │ 〰 ", "       │   "
+	case "tool":
+		return "      │ ▸ ", "      │   "
+	}
+	return "      │ ", "      │ "
 }
 
 func renderDetailView(m model) string {
@@ -176,58 +229,6 @@ func renderDetailView(m model) string {
 	b.WriteByte('\n')
 
 	return b.String()
-}
-
-// renderDetailTurnLine renders a single turn as a line in detail view.
-func renderDetailTurnLine(t turn, selected bool, expanded bool, width int) string {
-	var prefix string
-	var marker string
-	switch t.kind {
-	case "user":
-		prefix = " user"
-		marker = "│"
-	case "asst":
-		prefix = " asst"
-		marker = "│"
-	case "thinking":
-		prefix = " think"
-		marker = "│ 〰"
-	case "tool":
-		prefix = "      "
-		marker = "│ ▸"
-	default:
-		prefix = "      "
-		marker = "│"
-	}
-
-	line := fmt.Sprintf("%s %s %s", prefix, marker, t.body)
-	if selected {
-		return selectedStyle.Render(line)
-	}
-	return line
-}
-
-// expandedToolInputLines returns the tool's input as one indented line
-// per key, truncated to width. Used by detailBodyLines.
-func expandedToolInputLines(t turn, width int) []string {
-	if len(t.input) == 0 {
-		return nil
-	}
-	var out []string
-	for key, val := range t.input {
-		line := fmt.Sprintf("      │   %s: %v", key, val)
-		if width > 4 && len(line) > width {
-			line = line[:width-1] + "…"
-		}
-		out = append(out, line)
-	}
-	return out
-}
-
-// renderExpandedToolInput is kept for backwards-compat with any caller
-// that imported it; the renderer itself uses expandedToolInputLines now.
-func renderExpandedToolInput(t turn, width int) string {
-	return strings.Join(expandedToolInputLines(t, width), "\n") + "\n"
 }
 
 // renderDetailFooter renders the footer for detail view.
