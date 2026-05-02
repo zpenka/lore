@@ -3,6 +3,7 @@ package lore
 import (
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -67,6 +68,18 @@ type model struct {
 	rerunPrompt string                           // The user prompt being re-run
 	rerunCWD    string                           // The session's CWD for re-run
 	rerunFn     func(prompt, cwd string) tea.Cmd // Dependency-injected re-run hook; returns a tea.Cmd so the exec can be routed through tea.ExecProcess (or a fake in tests).
+
+	// Viewport scroll offsets (one per mode). Updated in the key handlers
+	// when the cursor moves; used by the renderers to slice the body.
+	listOffset    int
+	detailOffset  int
+	searchOffset  int
+	projectOffset int
+
+	// flashMsg is a transient one-render-cycle hint shown in the footer
+	// when a key press did nothing the user could see (e.g. `r` on a
+	// non-user turn). Cleared at the start of every keystroke.
+	flashMsg string
 }
 
 func newModel(projectsDir string) model {
@@ -83,6 +96,51 @@ func newModel(projectsDir string) model {
 
 func (m model) Init() tea.Cmd {
 	return loadSessionsCmd(m.projectsDir)
+}
+
+// Offset-update helpers, called from key handlers after a cursor move so
+// the stored offset stays consistent across renders (without these the
+// renderer would re-edge-snap from offset 0 every render and the cursor
+// would feel anchored to the bottom edge during k navigation).
+
+func (m model) clampListOffsetNow() model {
+	h := m.bodyHeight()
+	if h <= 0 {
+		return m
+	}
+	body, cursorLine := listBodyLines(m, time.Now())
+	m.listOffset = clampOffset(m.listOffset, cursorLine, len(body), h)
+	return m
+}
+
+func (m model) clampDetailOffsetNow() model {
+	h := m.bodyHeight()
+	if h <= 0 {
+		return m
+	}
+	body, cursorLine := detailBodyLines(m)
+	m.detailOffset = clampOffset(m.detailOffset, cursorLine, len(body), h)
+	return m
+}
+
+func (m model) clampSearchOffsetNow() model {
+	h := m.bodyHeight()
+	if h <= 0 {
+		return m
+	}
+	body, cursorLine := searchBodyLines(m)
+	m.searchOffset = clampOffset(m.searchOffset, cursorLine, len(body), h)
+	return m
+}
+
+func (m model) clampProjectOffsetNow() model {
+	h := m.bodyHeight()
+	if h <= 0 {
+		return m
+	}
+	body, cursorLine := projectBodyLines(m, time.Now())
+	m.projectOffset = clampOffset(m.projectOffset, cursorLine, len(body), h)
+	return m
 }
 
 func loadSessionsCmd(dir string) tea.Cmd {
@@ -143,6 +201,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Any keystroke clears the previous one-cycle flash. Handlers are free
+	// to set a fresh flashMsg below.
+	m.flashMsg = ""
+
 	if msg.Type == tea.KeyCtrlC {
 		return m, tea.Quit
 	}
@@ -179,18 +241,22 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.loading && m.cursor < len(m.visibleSessions)-1 {
 			m.cursor++
 		}
+		m = m.clampListOffsetNow()
 	case "k", "up":
 		if !m.loading && m.cursor > 0 {
 			m.cursor--
 		}
+		m = m.clampListOffsetNow()
 	case "g":
 		if !m.loading {
 			m.cursor = 0
 		}
+		m = m.clampListOffsetNow()
 	case "G":
 		if !m.loading && len(m.visibleSessions) > 0 {
 			m.cursor = len(m.visibleSessions) - 1
 		}
+		m = m.clampListOffsetNow()
 	case "p":
 		if !m.loading {
 			m.filterMode = filterModeProject
@@ -242,14 +308,15 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleDetailKey handles keys in detail mode
+// handleDetailKey handles keys in detail mode.
 func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "esc":
-		// Return to list mode (preserve cursor)
+		// Return to list mode (preserve cursor in list)
 		m.mode = modeList
 		m.turns = nil
 		m.cursorDetail = 0
+		m.detailOffset = 0
 		m.expandedTurns = make(map[int]bool)
 		m.showThinking = false
 		m.justCopied = false
@@ -260,40 +327,48 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursorDetail++
 		}
 		m.justCopied = false
+		m = m.clampDetailOffsetNow()
 	case "k", "up":
 		if m.cursorDetail > 0 {
 			m.cursorDetail--
 		}
 		m.justCopied = false
+		m = m.clampDetailOffsetNow()
+	case "g":
+		m.cursorDetail = 0
+		m.justCopied = false
+		m = m.clampDetailOffsetNow()
+	case "G":
+		visible := m.visibleTurns()
+		if len(visible) > 0 {
+			m.cursorDetail = len(visible) - 1
+		}
+		m.justCopied = false
+		m = m.clampDetailOffsetNow()
 	case " ":
-		// Expand/collapse tool turn
 		visible := m.visibleTurns()
 		if m.cursorDetail < len(visible) {
 			t := visible[m.cursorDetail]
 			if t.kind == "tool" {
-				// Find the index in the full turns list
 				fullIdx := m.visibleIndexToFullIndex(m.cursorDetail)
 				m.expandedTurns[fullIdx] = !m.expandedTurns[fullIdx]
+			} else {
+				m.flashMsg = "space: cursor is not on a tool turn"
 			}
 		}
 		m.justCopied = false
 	case "t":
-		// Toggle thinking visibility
 		m.showThinking = !m.showThinking
 		visible := m.visibleTurns()
-		// Clamp cursor if it's on a hidden thinking turn
 		if m.cursorDetail >= len(visible) && len(visible) > 0 {
 			m.cursorDetail = len(visible) - 1
 		}
 		m.justCopied = false
 	case "y":
-		// Copy user turn
 		visible := m.visibleTurns()
 		copied := false
 		if m.cursorDetail < len(visible) {
-			t := visible[m.cursorDetail]
-			if t.kind == "user" {
-				// Copy current user turn
+			if t := visible[m.cursorDetail]; t.kind == "user" {
 				if err := m.clipboardFn(t.body); err == nil {
 					m.justCopied = true
 					copied = true
@@ -301,18 +376,20 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if !copied {
-			// Find most recent user turn before cursor
 			for i := m.cursorDetail - 1; i >= 0; i-- {
 				if visible[i].kind == "user" {
 					if err := m.clipboardFn(visible[i].body); err == nil {
 						m.justCopied = true
+						copied = true
 					}
 					break
 				}
 			}
 		}
+		if !copied {
+			m.flashMsg = "y: no user prompt at or before cursor"
+		}
 	case "r":
-		// Enter re-run mode if on a user turn
 		visible := m.visibleTurns()
 		if m.cursorDetail < len(visible) {
 			t := visible[m.cursorDetail]
@@ -320,6 +397,8 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.mode = modeRerun
 				m.rerunPrompt = t.body
 				m.rerunCWD = m.detailSession.CWD
+			} else {
+				m.flashMsg = "r: cursor is not on a user turn"
 			}
 		}
 	}
@@ -368,22 +447,31 @@ func (m model) handleSearchEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) handleProjectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "esc":
-		// Return to list mode
 		m.mode = modeList
 		m.projectCWD = ""
 		m.projectSessions = nil
 		m.projectCursor = 0
+		m.projectOffset = 0
 		return m, nil
 	case "j", "down":
 		if m.projectCursor < len(m.projectSessions)-1 {
 			m.projectCursor++
 		}
+		m = m.clampProjectOffsetNow()
 	case "k", "up":
 		if m.projectCursor > 0 {
 			m.projectCursor--
 		}
+		m = m.clampProjectOffsetNow()
+	case "g":
+		m.projectCursor = 0
+		m = m.clampProjectOffsetNow()
+	case "G":
+		if len(m.projectSessions) > 0 {
+			m.projectCursor = len(m.projectSessions) - 1
+		}
+		m = m.clampProjectOffsetNow()
 	case "enter", "l", "right":
-		// Open session detail
 		if len(m.projectSessions) > 0 {
 			m.detailLoading = true
 			selected := m.projectSessions[m.projectCursor]
@@ -401,12 +489,21 @@ func (m model) handleSearchResultsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.searchCursor < len(m.searchResults)-1 {
 			m.searchCursor++
 		}
+		m = m.clampSearchOffsetNow()
 	case "k", "up":
 		if m.searchCursor > 0 {
 			m.searchCursor--
 		}
+		m = m.clampSearchOffsetNow()
+	case "g":
+		m.searchCursor = 0
+		m = m.clampSearchOffsetNow()
+	case "G":
+		if len(m.searchResults) > 0 {
+			m.searchCursor = len(m.searchResults) - 1
+		}
+		m = m.clampSearchOffsetNow()
 	case "enter", "l", "right":
-		// Open detail view for selected result
 		if len(m.searchResults) > 0 {
 			m.detailLoading = true
 			selected := m.searchResults[m.searchCursor].Session
@@ -414,14 +511,13 @@ func (m model) handleSearchResultsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, loadSessionDetailCmd(selected.Path)
 		}
 	case "/":
-		// Re-enter search with query preserved
 		m.searchMode = searchModeEntry
 	case "esc":
-		// Return to list mode
 		m.mode = modeList
 		m.searchQuery = ""
 		m.searchResults = nil
 		m.searchCursor = 0
+		m.searchOffset = 0
 	}
 	return m, nil
 }

@@ -48,34 +48,13 @@ func groupByBranch(sessions []Session) []BranchGroup {
 	return groups
 }
 
-// renderProjectView renders the project view
-func renderProjectView(m model, now time.Time) string {
-	if len(m.projectSessions) == 0 {
-		var b strings.Builder
-		b.WriteString(renderProjectHeader(m))
-		b.WriteByte('\n')
-		b.WriteString(renderDivider(m.width))
-		b.WriteByte('\n')
-		b.WriteString(" (no sessions for this project)\n")
-		b.WriteString(renderDivider(m.width))
-		b.WriteByte('\n')
-		b.WriteString(renderProjectFooter())
-		b.WriteByte('\n')
-		return b.String()
-	}
-
-	var b strings.Builder
-	b.WriteString(renderProjectHeader(m))
-	b.WriteByte('\n')
-	b.WriteString(renderDivider(m.width))
-	b.WriteByte('\n')
-
-	// Group by branch and render
+// projectBodyLines builds the rendered branch-grouped session rows for
+// project mode. cursorLine is the line index of the row that holds the
+// projectCursor's selected session (which indexes into the flat list).
+func projectBodyLines(m model, now time.Time) (lines []string, cursorLine int) {
 	groups := groupByBranch(m.projectSessions)
-
 	sessionIdx := 0
 	for _, group := range groups {
-		// Render branch heading
 		latestInGroup := group.Sessions[0]
 		bucketLabel := timeBucket(latestInGroup.Timestamp, now)
 		headingLine := fmt.Sprintf(" %s   %d session%s   %s",
@@ -84,43 +63,73 @@ func renderProjectView(m model, now time.Time) string {
 			plural(len(group.Sessions)),
 			bucketLabel,
 		)
-		b.WriteString(bucketStyle.Render(headingLine))
-		b.WriteByte('\n')
+		lines = append(lines, bucketStyle.Render(headingLine))
 
-		// Render sessions in this group
 		for _, sess := range group.Sessions {
 			isSelected := (sessionIdx == m.projectCursor)
-			line := fmt.Sprintf("  %s  %s",
+			row := fmt.Sprintf("  %s  %s",
 				sess.Timestamp.Format("15:04"),
 				sess.Slug,
 			)
 			if isSelected {
-				b.WriteString(selectedStyle.Render(line))
+				cursorLine = len(lines)
+				lines = append(lines, selectedStyle.Render(row))
 			} else {
-				b.WriteString(line)
+				lines = append(lines, row)
 			}
-			b.WriteByte('\n')
 			sessionIdx++
 		}
+	}
+	return
+}
+
+// renderProjectView renders the project view
+func renderProjectView(m model, now time.Time) string {
+	var b strings.Builder
+	b.WriteString(renderProjectHeader(m))
+	b.WriteByte('\n')
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+
+	body, cursorLine := projectBodyLines(m, now)
+	if len(body) == 0 {
+		body = []string{" (no sessions for this project)"}
+		cursorLine = 0
+	}
+	height := m.bodyHeight()
+	offset := clampOffset(m.projectOffset, cursorLine, len(body), height)
+	for _, line := range renderBody(body, offset, height) {
+		b.WriteString(line)
+		b.WriteByte('\n')
 	}
 
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
-	b.WriteString(renderProjectFooter())
+	b.WriteString(renderProjectFooter(m))
 	b.WriteByte('\n')
 
 	return b.String()
 }
 
 func renderProjectHeader(m model) string {
+	// Derive the displayed project name from the projectCWD itself rather
+	// than indexing back into m.sessions[m.cursor], which can be wrong if
+	// the user navigated through search or some other entry path.
+	name := m.projectCWD
+	if i := strings.LastIndex(name, "/"); i >= 0 && i < len(name)-1 {
+		name = name[i+1:]
+	}
 	return headerStyle.Render(fmt.Sprintf(" %s · %s   %d session%s",
-		m.sessions[m.cursor].Project,
+		name,
 		m.projectCWD,
 		len(m.projectSessions),
 		plural(len(m.projectSessions)),
 	))
 }
 
-func renderProjectFooter() string {
-	return footerStyle.Render(" j/k move   enter open   q/esc back")
+func renderProjectFooter(m model) string {
+	if m.flashMsg != "" {
+		return flashStyle.Render(" " + m.flashMsg)
+	}
+	return footerStyle.Render(" j/k move   enter open   g/G top/bottom   q/esc back")
 }
