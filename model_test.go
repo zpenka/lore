@@ -857,21 +857,23 @@ func TestModel_Rerun_PressEnter_CallsRerunFn(t *testing.T) {
 	called := false
 	var capturedPrompt, capturedCWD string
 
+	type sentinelMsg struct{}
+
 	m := loadedModel("a")
 	m.mode = modeRerun
 	m.rerunPrompt = "my prompt"
 	m.rerunCWD = "/home/proj"
-	m.rerunFn = func(prompt, cwd string) error {
+	m.rerunFn = func(prompt, cwd string) tea.Cmd {
 		called = true
 		capturedPrompt = prompt
 		capturedCWD = cwd
-		return nil
+		return func() tea.Msg { return sentinelMsg{} }
 	}
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	if !called {
-		t.Error("rerunFn was not called")
+		t.Fatal("rerunFn was not called")
 	}
 	if capturedPrompt != "my prompt" {
 		t.Errorf("rerunFn called with prompt %q, want 'my prompt'", capturedPrompt)
@@ -879,10 +881,37 @@ func TestModel_Rerun_PressEnter_CallsRerunFn(t *testing.T) {
 	if capturedCWD != "/home/proj" {
 		t.Errorf("rerunFn called with cwd %q, want '/home/proj'", capturedCWD)
 	}
+	if cmd == nil {
+		t.Fatal("expected a tea.Cmd from rerunFn, got nil")
+	}
+	// The Cmd returned by rerunFn must be the one we plumb back; bubbletea
+	// will execute it and dispatch the resulting msg.
+	if _, ok := cmd().(sentinelMsg); !ok {
+		t.Errorf("expected sentinelMsg from rerunFn's Cmd, got %T", cmd())
+	}
+}
 
-	// Verify Quit command
-	if cmd == nil || cmd() != tea.Quit() {
-		t.Error("expected tea.Quit command after successful rerun")
+func TestModel_Rerun_DoneMsg_QuitsProgram(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeRerun
+	_, cmd := m.Update(rerunDoneMsg{err: nil})
+	if cmd == nil {
+		t.Fatal("rerunDoneMsg should produce a Cmd")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Errorf("rerunDoneMsg should produce tea.QuitMsg, got %T", cmd())
+	}
+}
+
+func TestModel_Rerun_DoneMsg_QuitsEvenOnError(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeRerun
+	_, cmd := m.Update(rerunDoneMsg{err: errFake("claude not found")})
+	if cmd == nil {
+		t.Fatal("rerunDoneMsg with err should still produce a Cmd")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Errorf("rerunDoneMsg should produce tea.QuitMsg even on err, got %T", cmd())
 	}
 }
 

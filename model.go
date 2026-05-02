@@ -64,9 +64,9 @@ type model struct {
 	projectCursor   int       // Cursor row within the visible flat list
 
 	// Re-run state
-	rerunPrompt string                         // The user prompt being re-run
-	rerunCWD    string                         // The session's CWD for re-run
-	rerunFn     func(prompt, cwd string) error // Dependency-injected re-run function
+	rerunPrompt string                           // The user prompt being re-run
+	rerunCWD    string                           // The session's CWD for re-run
+	rerunFn     func(prompt, cwd string) tea.Cmd // Dependency-injected re-run hook; returns a tea.Cmd so the exec can be routed through tea.ExecProcess (or a fake in tests).
 }
 
 func newModel(projectsDir string) model {
@@ -127,6 +127,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
+
+	case rerunDoneMsg:
+		// Claude has exited (or failed to launch). v1 quits lore so the
+		// terminal returns cleanly to the user; they can re-launch lore
+		// manually. The error is currently discarded — surfacing it to
+		// the user is a follow-up.
+		_ = msg.err
+		return m, tea.Quit
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -418,19 +426,17 @@ func (m model) handleSearchResultsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleRerunKey handles keys in rerun mode
+// handleRerunKey handles keys in rerun mode.
+//
+// On enter we hand off to rerunFn, which returns a tea.Cmd. The default
+// rerunClaude wraps tea.ExecProcess: bubbletea suspends, the child
+// process owns the terminal, and a rerunDoneMsg fires when it exits. We
+// then quit lore in the rerunDoneMsg handler.
 func (m model) handleRerunKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		// Execute re-run
-		if err := m.rerunFn(m.rerunPrompt, m.rerunCWD); err == nil {
-			// On success, quit the program
-			return m, tea.Quit
-		}
-		// On error, stay in rerun mode (error will be handled elsewhere if needed)
-		return m, nil
+		return m, m.rerunFn(m.rerunPrompt, m.rerunCWD)
 	case "esc", "q":
-		// Cancel re-run and return to detail mode
 		m.mode = modeDetail
 		m.rerunPrompt = ""
 		m.rerunCWD = ""
