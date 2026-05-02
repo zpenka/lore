@@ -1,6 +1,7 @@
 package lore
 
 import (
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,7 +20,13 @@ type sessionsLoadedMsg struct {
 	err      error
 }
 
-// model is the Bubble Tea state for the session-list panel.
+// sessionDetailLoadedMsg is dispatched when a single session's turns are loaded.
+type sessionDetailLoadedMsg struct {
+	turns []turn
+	err   error
+}
+
+// model is the Bubble Tea state for the session-list and detail panels.
 type model struct {
 	projectsDir       string
 	sessions          []Session
@@ -32,6 +39,14 @@ type model struct {
 	filterMode        int
 	filterText        string
 	appliedFilterMode int // Track which mode filter was applied in (used for display)
+
+	// Detail view state
+	mode          int     // modeList or modeDetail
+	detailSession Session // The session being displayed in detail
+	turns         []turn  // Parsed turns from the session
+	cursorDetail  int     // Cursor position in detail view
+	detailErr     error   // Error loading/parsing detail session
+	detailLoading bool    // True while loading session content
 }
 
 func newModel(projectsDir string) model {
@@ -52,6 +67,19 @@ func loadSessionsCmd(dir string) tea.Cmd {
 	}
 }
 
+// loadSessionDetailCmd loads the full session JSONL and parses turns
+func loadSessionDetailCmd(path string) tea.Cmd {
+	return func() tea.Msg {
+		f, err := os.Open(path)
+		if err != nil {
+			return sessionDetailLoadedMsg{err: err}
+		}
+		defer f.Close()
+		turns, err := parseTurnsFromJSONL(f)
+		return sessionDetailLoadedMsg{turns: turns, err: err}
+	}
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case sessionsLoadedMsg:
@@ -59,6 +87,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sessions = msg.sessions
 		m.visibleSessions = msg.sessions
 		m.err = msg.err
+		return m, nil
+
+	case sessionDetailLoadedMsg:
+		// Detail view session loaded
+		m.detailLoading = false
+		m.turns = msg.turns
+		m.detailErr = msg.err
+		m.mode = modeDetail
+		m.cursorDetail = 0
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -77,6 +114,19 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
+	// Dispatch based on current mode
+	switch m.mode {
+	case modeDetail:
+		return m.handleDetailKey(msg)
+	case modeList:
+		return m.handleListKey(msg)
+	}
+
+	return m, nil
+}
+
+// handleListKey handles keys in list mode
+func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// If in filter entry mode, handle filter-specific keys
 	if m.filterMode != filterModeNone {
 		return m.handleFilterEntryKey(msg)
@@ -110,6 +160,14 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.loading {
 			m.filterMode = filterModeBranch
 		}
+	case "enter", "l", "right":
+		// Open session detail
+		if !m.loading && len(m.visibleSessions) > 0 {
+			m.detailLoading = true
+			selected := m.visibleSessions[m.cursor]
+			m.detailSession = selected
+			return m, loadSessionDetailCmd(selected.Path)
+		}
 	case "esc":
 		// Clear filter and restore full list (only when filter is applied)
 		if m.appliedFilterMode != filterModeNone {
@@ -117,6 +175,27 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.visibleSessions = m.sessions
 			m.appliedFilterMode = filterModeNone
 			m.cursor = 0
+		}
+	}
+	return m, nil
+}
+
+// handleDetailKey handles keys in detail mode
+func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "esc":
+		// Return to list mode (preserve cursor)
+		m.mode = modeList
+		m.turns = nil
+		m.cursorDetail = 0
+		return m, nil
+	case "j", "down":
+		if m.cursorDetail < len(m.turns)-1 {
+			m.cursorDetail++
+		}
+	case "k", "up":
+		if m.cursorDetail > 0 {
+			m.cursorDetail--
 		}
 	}
 	return m, nil

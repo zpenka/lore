@@ -17,6 +17,18 @@ var (
 )
 
 func (m model) View() string {
+	// Dispatch based on current mode
+	switch m.mode {
+	case modeDetail:
+		return renderDetailView(m)
+	case modeList:
+		return renderListView(m)
+	}
+	return ""
+}
+
+// renderListView renders the session list
+func renderListView(m model) string {
 	if m.err != nil {
 		return errorStyle.Render(fmt.Sprintf(" error: %v", m.err)) + "\n"
 	}
@@ -36,8 +48,84 @@ func (m model) View() string {
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
 	b.WriteString(renderFooter(m))
+	if m.detailLoading {
+		b.WriteString(" (loading session...)")
+	}
 	b.WriteByte('\n')
 	return b.String()
+}
+
+// renderDetailView renders the session detail
+func renderDetailView(m model) string {
+	if m.detailErr != nil {
+		return errorStyle.Render(fmt.Sprintf(" error: %v", m.detailErr)) + "\n"
+	}
+	if m.detailLoading {
+		return " loading session...\n"
+	}
+
+	var b strings.Builder
+
+	// Header: slug · project · branch   YYYY-MM-DD
+	dateStr := m.detailSession.Timestamp.Format("2006-01-02")
+	headerLine := fmt.Sprintf(" %s · %s · %s   %s",
+		m.detailSession.Slug,
+		m.detailSession.Project,
+		m.detailSession.Branch,
+		dateStr,
+	)
+	b.WriteString(headerStyle.Render(headerLine))
+	b.WriteByte('\n')
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+
+	// Body: turns
+	if len(m.turns) == 0 {
+		b.WriteString(" (no turns to display)\n")
+	} else {
+		for i, t := range m.turns {
+			isSelected := (i == m.cursorDetail)
+			b.WriteString(renderTurnLine(t, isSelected))
+			b.WriteByte('\n')
+		}
+	}
+
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+	b.WriteString(footerStyle.Render(" j/k scroll   q/esc back"))
+	b.WriteByte('\n')
+
+	return b.String()
+}
+
+// renderTurnLine renders a single turn as a line.
+func renderTurnLine(t turn, selected bool) string {
+	// Format:
+	// user   │ <text>
+	// asst   │ <text>
+	//        │ ▸ <tool>
+	var prefix string
+	var marker string
+	switch t.kind {
+	case "user":
+		prefix = " user"
+		marker = "│"
+	case "asst":
+		prefix = " asst"
+		marker = "│"
+	case "tool":
+		prefix = "     "
+		marker = "│ ▸"
+	default:
+		prefix = "     "
+		marker = "│"
+	}
+
+	line := fmt.Sprintf("%s %s %s", prefix, marker, t.body)
+	if selected {
+		return selectedStyle.Render(line)
+	}
+	return line
 }
 
 func renderHeader(m model) string {
