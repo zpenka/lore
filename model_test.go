@@ -799,3 +799,127 @@ func TestModel_SearchEntry_EmptyBackspace_NoOp(t *testing.T) {
 		t.Errorf("backspace on empty: searchQuery = %q, want ''", nm.searchQuery)
 	}
 }
+
+// Re-run mode tests
+
+func TestModel_Detail_PressR_OnUserTurn_EntersRerunMode(t *testing.T) {
+	tmpdir := t.TempDir()
+	sessionPath := writeTestSessionForModel(t, tmpdir, "sess.jsonl", `
+{"type":"user","sessionId":"s1","timestamp":"2026-05-01T10:00:00Z","cwd":"/home/test","gitBranch":"main","slug":"test-slug","message":{"content":"hello world"}}
+{"type":"assistant","sessionId":"s1","timestamp":"2026-05-01T10:00:00Z","message":{"content":[{"type":"text","text":"response"}]}}
+`)
+
+	m := loadedModelWith(
+		Session{ID: "s1", Slug: "test-slug", Path: sessionPath, Project: "proj", Branch: "main", CWD: "/home/test", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+	)
+	m.mode = modeDetail
+	m.detailSession = m.sessions[0]
+	m.turns = []turn{
+		{kind: "user", body: "hello world"},
+		{kind: "asst", body: "response"},
+	}
+	m.cursorDetail = 0 // cursor on user turn
+	m.width = 100
+
+	next, _ := m.Update(keyMsg("r"))
+	nm := next.(model)
+
+	if nm.mode != modeRerun {
+		t.Errorf("after 'r' on user turn: mode = %d, want %d (modeRerun)", nm.mode, modeRerun)
+	}
+	if nm.rerunPrompt != "hello world" {
+		t.Errorf("after 'r': rerunPrompt = %q, want 'hello world'", nm.rerunPrompt)
+	}
+	if nm.rerunCWD != "/home/test" {
+		t.Errorf("after 'r': rerunCWD = %q, want '/home/test'", nm.rerunCWD)
+	}
+}
+
+func TestModel_Detail_PressR_OnNonUserTurn_NoOp(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeDetail
+	m.detailSession = m.sessions[0]
+	m.turns = []turn{
+		{kind: "asst", body: "response"},
+	}
+	m.cursorDetail = 0 // cursor on assistant turn (not user)
+	m.width = 100
+
+	next, _ := m.Update(keyMsg("r"))
+	nm := next.(model)
+
+	if nm.mode != modeDetail {
+		t.Errorf("after 'r' on non-user turn: mode = %d, want %d (modeDetail)", nm.mode, modeDetail)
+	}
+}
+
+func TestModel_Rerun_PressEnter_CallsRerunFn(t *testing.T) {
+	called := false
+	var capturedPrompt, capturedCWD string
+
+	m := loadedModel("a")
+	m.mode = modeRerun
+	m.rerunPrompt = "my prompt"
+	m.rerunCWD = "/home/proj"
+	m.rerunFn = func(prompt, cwd string) error {
+		called = true
+		capturedPrompt = prompt
+		capturedCWD = cwd
+		return nil
+	}
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	if !called {
+		t.Error("rerunFn was not called")
+	}
+	if capturedPrompt != "my prompt" {
+		t.Errorf("rerunFn called with prompt %q, want 'my prompt'", capturedPrompt)
+	}
+	if capturedCWD != "/home/proj" {
+		t.Errorf("rerunFn called with cwd %q, want '/home/proj'", capturedCWD)
+	}
+
+	// Verify Quit command
+	if cmd == nil || cmd() != tea.Quit() {
+		t.Error("expected tea.Quit command after successful rerun")
+	}
+}
+
+func TestModel_Rerun_PressEscape_ReturnsToDetail(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeRerun
+	m.rerunPrompt = "my prompt"
+	m.rerunCWD = "/home/proj"
+	m.detailSession = m.sessions[0]
+	m.turns = []turn{{kind: "user", body: "test"}}
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	nm := next.(model)
+
+	if nm.mode != modeDetail {
+		t.Errorf("after esc in rerun: mode = %d, want %d (modeDetail)", nm.mode, modeDetail)
+	}
+	if nm.rerunPrompt != "" {
+		t.Errorf("after esc: rerunPrompt should be cleared, got %q", nm.rerunPrompt)
+	}
+	if nm.rerunCWD != "" {
+		t.Errorf("after esc: rerunCWD should be cleared, got %q", nm.rerunCWD)
+	}
+}
+
+func TestModel_Rerun_PressQ_ReturnsToDetail(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeRerun
+	m.rerunPrompt = "my prompt"
+	m.rerunCWD = "/home/proj"
+	m.detailSession = m.sessions[0]
+	m.turns = []turn{{kind: "user", body: "test"}}
+
+	next, _ := m.Update(keyMsg("q"))
+	nm := next.(model)
+
+	if nm.mode != modeDetail {
+		t.Errorf("after 'q' in rerun: mode = %d, want %d (modeDetail)", nm.mode, modeDetail)
+	}
+}
