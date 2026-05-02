@@ -62,6 +62,11 @@ type model struct {
 	projectCWD      string    // The CWD this view is showing
 	projectSessions []Session // Pre-filtered subset by CWD
 	projectCursor   int       // Cursor row within the visible flat list
+
+	// Re-run state
+	rerunPrompt string                         // The user prompt being re-run
+	rerunCWD    string                         // The session's CWD for re-run
+	rerunFn     func(prompt, cwd string) error // Dependency-injected re-run function
 }
 
 func newModel(projectsDir string) model {
@@ -72,6 +77,7 @@ func newModel(projectsDir string) model {
 		showThinking:  false,
 		justCopied:    false,
 		clipboardFn:   copyToClipboard, // Default to real implementation
+		rerunFn:       rerunClaude,     // Default to real implementation
 	}
 }
 
@@ -143,6 +149,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSearchKey(msg)
 	case modeProject:
 		return m.handleProjectKey(msg)
+	case modeRerun:
+		return m.handleRerunKey(msg)
 	}
 
 	return m, nil
@@ -295,6 +303,17 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+	case "r":
+		// Enter re-run mode if on a user turn
+		visible := m.visibleTurns()
+		if m.cursorDetail < len(visible) {
+			t := visible[m.cursorDetail]
+			if t.kind == "user" {
+				m.mode = modeRerun
+				m.rerunPrompt = t.body
+				m.rerunCWD = m.detailSession.CWD
+			}
+		}
 	}
 	return m, nil
 }
@@ -395,6 +414,27 @@ func (m model) handleSearchResultsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.searchQuery = ""
 		m.searchResults = nil
 		m.searchCursor = 0
+	}
+	return m, nil
+}
+
+// handleRerunKey handles keys in rerun mode
+func (m model) handleRerunKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		// Execute re-run
+		if err := m.rerunFn(m.rerunPrompt, m.rerunCWD); err == nil {
+			// On success, quit the program
+			return m, tea.Quit
+		}
+		// On error, stay in rerun mode (error will be handled elsewhere if needed)
+		return m, nil
+	case "esc", "q":
+		// Cancel re-run and return to detail mode
+		m.mode = modeDetail
+		m.rerunPrompt = ""
+		m.rerunCWD = ""
+		return m, nil
 	}
 	return m, nil
 }

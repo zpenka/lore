@@ -13,6 +13,7 @@ const (
 	modeDetail
 	modeSearch
 	modeProject
+	modeRerun
 )
 
 // Search sub-modes
