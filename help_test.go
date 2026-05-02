@@ -82,8 +82,8 @@ func TestRender_HelpOverlayInListMode(t *testing.T) {
 	if !strings.Contains(out, "j") {
 		t.Error("help output should contain 'j'")
 	}
-	if !strings.Contains(out, "?") {
-		t.Error("help output should contain '?'")
+	if !strings.Contains(out, "List Mode Help") {
+		t.Error("help output should contain 'List Mode Help' header")
 	}
 }
 
@@ -105,8 +105,8 @@ func TestRender_HelpOverlayInDetailMode(t *testing.T) {
 	if !strings.Contains(out, "space") {
 		t.Error("help output should contain 'space'")
 	}
-	if !strings.Contains(out, "?") {
-		t.Error("help output should contain '?'")
+	if !strings.Contains(out, "Detail Mode Help") {
+		t.Error("help output should contain 'Detail Mode Help' header")
 	}
 }
 
@@ -121,5 +121,53 @@ func TestModel_HelpDoesntGetDismissedByCtrlC(t *testing.T) {
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok {
 		t.Errorf("ctrl+c should produce tea.QuitMsg, got %T", cmd())
+	}
+}
+
+func TestRender_HelpOverlayInSearchMode(t *testing.T) {
+	m := loadedModel("a", "b")
+	m.mode = modeSearch
+	m.width = 80
+	m.height = 24
+	m.showHelp = true
+
+	out := m.View()
+
+	if !strings.Contains(out, "Search Mode Help") {
+		t.Error("help output should contain 'Search Mode Help' header")
+	}
+}
+
+func TestRender_HelpOverlayInProjectMode(t *testing.T) {
+	m := loadedModel("a", "b")
+	m.mode = modeProject
+	m.projectSessions = m.visibleSessions
+	m.width = 80
+	m.height = 24
+	m.showHelp = true
+
+	out := m.View()
+
+	if !strings.Contains(out, "Project Mode Help") {
+		t.Error("help output should contain 'Project Mode Help' header")
+	}
+}
+
+func TestRender_HelpOverlayInRerunMode(t *testing.T) {
+	m := newModel("/d")
+	m.loading = false
+	m.sessions = []Session{{ID: "a", Slug: "a"}}
+	m.visibleSessions = m.sessions
+	m.mode = modeRerun
+	m.rerunPrompt = "test"
+	m.rerunCWD = "/home/test"
+	m.width = 80
+	m.height = 24
+	m.showHelp = true
+
+	out := m.View()
+
+	if !strings.Contains(out, "Re-run Mode Help") {
+		t.Error("help output should contain 'Re-run Mode Help' header")
 	}
 }
