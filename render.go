@@ -10,12 +10,14 @@ import (
 )
 
 var (
-	headerStyle   = lipgloss.NewStyle().Bold(true)
-	bucketStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
-	footerStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	flashStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	headerStyle     = lipgloss.NewStyle().Bold(true)
+	bucketStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	selectedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
+	footerStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	flashStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	errorStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	diffAddStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	diffRemoveStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 )
 
 // chromeLines is the constant number of fixed-height rows around the
@@ -160,12 +162,20 @@ func wrapTurnLines(t turn, expanded bool, width int) []string {
 		}
 	}
 	if t.kind == "tool" && expanded {
-		// Render input as `key: value` rows under a continuation gutter,
-		// each row also wrapped to the same width.
-		for k, v := range t.input {
-			kv := fmt.Sprintf("  %s: %v", k, v)
-			for _, line := range wrapText(kv, avail) {
-				out = append(out, cont+line)
+		// Check if this is an Edit or Write tool that should render as a diff
+		toolName := extractToolName(t.body)
+		if toolName == "Edit" {
+			out = append(out, renderEditDiff(t.input, cont, avail)...)
+		} else if toolName == "Write" {
+			out = append(out, renderWriteDiff(t.input, cont, avail)...)
+		} else {
+			// Render input as `key: value` rows under a continuation gutter,
+			// each row also wrapped to the same width.
+			for k, v := range t.input {
+				kv := fmt.Sprintf("  %s: %v", k, v)
+				for _, line := range wrapText(kv, avail) {
+					out = append(out, cont+line)
+				}
 			}
 		}
 	}
@@ -467,6 +477,79 @@ func renderRerunView(m model) string {
 	b.WriteString(footerStyle.Render(" enter run   esc cancel"))
 	b.WriteByte('\n')
 	return b.String()
+}
+
+// extractToolName extracts the tool name from the tool body string.
+// The body format is "ToolName <snippet>", so we split on the first space.
+func extractToolName(body string) string {
+	parts := strings.SplitN(body, " ", 2)
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
+}
+
+// renderEditDiff renders the input for an Edit tool as a diff with old_string (red) and new_string (green).
+func renderEditDiff(input map[string]interface{}, cont string, avail int) []string {
+	var out []string
+
+	// Render file path
+	if filePath, ok := input["file_path"].(string); ok {
+		line := fmt.Sprintf("  file: %s", filePath)
+		for _, l := range wrapText(line, avail) {
+			out = append(out, cont+l)
+		}
+	}
+
+	// Render old_string lines with "- " prefix in red
+	if oldStr, ok := input["old_string"].(string); ok {
+		lines := strings.Split(oldStr, "\n")
+		for _, line := range lines {
+			prefixed := "- " + line
+			for _, wrappedLine := range wrapText(prefixed, avail) {
+				out = append(out, cont+diffRemoveStyle.Render(wrappedLine))
+			}
+		}
+	}
+
+	// Render new_string lines with "+ " prefix in green
+	if newStr, ok := input["new_string"].(string); ok {
+		lines := strings.Split(newStr, "\n")
+		for _, line := range lines {
+			prefixed := "+ " + line
+			for _, wrappedLine := range wrapText(prefixed, avail) {
+				out = append(out, cont+diffAddStyle.Render(wrappedLine))
+			}
+		}
+	}
+
+	return out
+}
+
+// renderWriteDiff renders the input for a Write tool as add-only (all lines green with "+ " prefix).
+func renderWriteDiff(input map[string]interface{}, cont string, avail int) []string {
+	var out []string
+
+	// Render file path
+	if filePath, ok := input["file_path"].(string); ok {
+		line := fmt.Sprintf("  file: %s", filePath)
+		for _, l := range wrapText(line, avail) {
+			out = append(out, cont+l)
+		}
+	}
+
+	// Render content lines with "+ " prefix in green
+	if content, ok := input["content"].(string); ok {
+		lines := strings.Split(content, "\n")
+		for _, line := range lines {
+			prefixed := "+ " + line
+			for _, wrappedLine := range wrapText(prefixed, avail) {
+				out = append(out, cont+diffAddStyle.Render(wrappedLine))
+			}
+		}
+	}
+
+	return out
 }
 
 func truncatePromptLine(s string, maxLen int) string {

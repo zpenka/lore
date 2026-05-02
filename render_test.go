@@ -372,7 +372,7 @@ func TestRender_EditToolDiff(t *testing.T) {
 			kind: "tool",
 			body: "Edit /x.go",
 			input: map[string]interface{}{
-				"file_path": "/x.go",
+				"file_path":  "/x.go",
 				"old_string": "foo\nbar",
 				"new_string": "foo\nbaz",
 			},
