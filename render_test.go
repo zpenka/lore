@@ -159,15 +159,91 @@ func TestRenderDivider_NormalWidth(t *testing.T) {
 	}
 }
 
-// helpers
-
-func loadedModelWith(ss ...Session) model {
-	m := newModel("/d")
-	m.loading = false
-	m.sessions = ss
-	m.width = 100
-	return m
+func TestRenderFooter_DefaultFooter(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "grit", Slug: "s1", Timestamp: time.Now()},
+	)
+	out := renderFooter(m)
+	if !strings.Contains(out, "j/k move") {
+		t.Errorf("default footer missing 'j/k move':\n%s", out)
+	}
+	if !strings.Contains(out, "p project filter") {
+		t.Errorf("default footer missing 'p project filter':\n%s", out)
+	}
+	if !strings.Contains(out, "b branch filter") {
+		t.Errorf("default footer missing 'b branch filter':\n%s", out)
+	}
 }
+
+func TestRenderFooter_ProjectFilterEntry(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "grit", Slug: "s1", Timestamp: time.Now()},
+	)
+	m.filterMode = filterModeProject
+	m.filterText = "gr"
+	out := renderFooter(m)
+	if !strings.Contains(out, "project filter: gr_") {
+		t.Errorf("project filter entry footer wrong:\n%s", out)
+	}
+	if !strings.Contains(out, "[enter] apply") {
+		t.Errorf("project filter entry footer missing '[enter] apply':\n%s", out)
+	}
+	if !strings.Contains(out, "[esc] cancel") {
+		t.Errorf("project filter entry footer missing '[esc] cancel':\n%s", out)
+	}
+}
+
+func TestRenderFooter_BranchFilterEntry(t *testing.T) {
+	m := loadedModelWith(
+		Session{Branch: "main", Slug: "s1", Timestamp: time.Now()},
+	)
+	m.filterMode = filterModeBranch
+	m.filterText = "ma"
+	out := renderFooter(m)
+	if !strings.Contains(out, "branch filter: ma_") {
+		t.Errorf("branch filter entry footer wrong:\n%s", out)
+	}
+	if !strings.Contains(out, "[enter] apply") {
+		t.Errorf("branch filter entry footer missing '[enter] apply':\n%s", out)
+	}
+	if !strings.Contains(out, "[esc] cancel") {
+		t.Errorf("branch filter entry footer missing '[esc] cancel':\n%s", out)
+	}
+}
+
+func TestRenderFooter_ProjectFilterApplied(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "grit", Slug: "s1", Timestamp: time.Now()},
+		Session{Project: "dotfiles", Slug: "s2", Timestamp: time.Now()},
+	)
+	m.filterText = "gr"
+	m.appliedFilterMode = filterModeProject
+	out := renderFooter(m)
+	if !strings.Contains(out, "filtered by project: gr") {
+		t.Errorf("project filter applied footer wrong:\n%s", out)
+	}
+	if !strings.Contains(out, "[esc] clear") {
+		t.Errorf("project filter applied footer missing '[esc] clear':\n%s", out)
+	}
+}
+
+func TestRenderFooter_BranchFilterApplied(t *testing.T) {
+	m := loadedModelWith(
+		Session{Branch: "main", Slug: "s1", Timestamp: time.Now()},
+		Session{Branch: "fix", Slug: "s2", Timestamp: time.Now()},
+	)
+	m.filterText = "fi"
+	m.appliedFilterMode = filterModeBranch
+	out := renderFooter(m)
+	if !strings.Contains(out, "filtered by branch: fi") {
+		t.Errorf("branch filter applied footer wrong:\n%s", out)
+	}
+	if !strings.Contains(out, "[esc] clear") {
+		t.Errorf("branch filter applied footer missing '[esc] clear':\n%s", out)
+	}
+}
+
+// helpers
 
 func containsFold(haystack, needle string) bool {
 	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))

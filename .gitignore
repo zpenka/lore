@@ -1,0 +1,11 @@
+# Agent scratch directories — Claude Code worktrees and per-agent state.
+.claude/
+
+# Go test artifacts.
+*.test
+*.out
+coverage.out
+cov.out
+
+# Built binaries.
+/lore
