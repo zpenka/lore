@@ -208,7 +208,8 @@ go tool cover -func=coverage.out
 
 Packages excluded from the coverage gate:
 - `cmd/lore`: thin wrapper calling `lore.Run()` (integration code).
-- Integration functions in `lore.go` (`Run()`, `defaultProjectsDir()`) that cannot be unit-tested in isolation.
+
+The gate aggregates per-package statement coverage from `coverage.out` (i.e. statement-weighted, not function-averaged). To debug a failure locally, re-run the awk block in `.github/workflows/ci.yml` against your `coverage.out`.
 
 ## Agent contract
 
