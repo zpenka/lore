@@ -184,3 +184,43 @@ go test -run TestSmoke -v ./...
 ```
 
 These read actual `.jsonl` files from `~/.claude/projects/`. If you have no real sessions, create fixture files in a temp directory and point the test there.
+
+## Test-driven development (required)
+
+All PRs on this repository must follow **red → green → refactor**:
+
+1. **Red**: Write a failing test first. Commit it with a clear message explaining what behavior you're testing.
+2. **Green**: Write the minimal production code to make the test pass. Commit separately.
+3. **Refactor** (optional): Improve code style or structure without changing behavior. Tests must remain green.
+
+Do not write production code without a failing test driving it. The CI gate (`.github/workflows/ci.yml`) enforces:
+
+```bash
+go test -race -cover ./...
+```
+
+Per-package coverage must be ≥80% (CI fails the job if any package other than `cmd/lore` falls below this threshold). The full command to check locally:
+
+```bash
+go test -race -coverprofile=coverage.out -covermode=atomic ./...
+go tool cover -func=coverage.out
+```
+
+Packages excluded from the coverage gate:
+- `cmd/lore`: thin wrapper calling `lore.Run()` (integration code).
+- Integration functions in `lore.go` (`Run()`, `defaultProjectsDir()`) that cannot be unit-tested in isolation.
+
+## Agent contract
+
+Future sub-agents working on this repo must adhere to these rules:
+
+- **Worktree**: Create a worktree, branch from `main`. Do not commit directly to `main`.
+- **Red/green/refactor**: One commit per phase. The red commit's tests MUST fail in isolation (verify: `git show HEAD:lore_test.go | go test ./...` after committing the test).
+- **Pre-PR checks**: Run locally before opening a PR:
+  - `go test -race -cover ./...` (verify ≥80% on touched packages)
+  - `go vet ./...` (must be clean)
+  - `gofmt -l .` (must be clean; no files should be listed)
+- **No shortcuts**: Do not skip hooks (`--no-verify`), do not lower coverage, do not add dependencies not listed in `DESIGN.md`.
+- **PR body**: Use `gh pr create` with a body that explicitly names the commits: "Red commit: abc1234, green commit: def5678, refactor (optional): ...".
+- **Blocking issues**: If stuck, stop and surface the blocker clearly in the PR or via a GitHub issue. Do not work around constraints.
+
