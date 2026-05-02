@@ -19,7 +19,8 @@ jobs:
 
       - name: Check formatting
         run: |
-          gofmt -l . | tee /tmp/fmt.out && test ! -s /tmp/fmt.out
+          gofmt -l . | tee /tmp/fmt.out
+          test ! -s /tmp/fmt.out
 
       - name: Run vet
         run: go vet ./...
@@ -27,41 +28,31 @@ jobs:
       - name: Run tests with coverage
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
-      - name: Check coverage threshold
+      - name: Per-package coverage gate (>=80%, excluding cmd/lore)
         run: |
-          # Check per-package coverage (exclude cmd/lore and lore.go integration functions)
-          python3 << 'EOSCRIPT'
-          import subprocess
-          import re
-          import sys
-
-          result = subprocess.run(['go', 'tool', 'cover', '-func=coverage.out'],
-                                 capture_output=True, text=True)
-
-          package_cov = {}
-          for line in result.stdout.split('\n'):
-              if not line.startswith('github.com/zpenka/lore'):
-                  continue
-              # Skip cmd/lore (thin wrapper) and lore.go integration functions
-              if 'cmd/lore' in line or ('/lore.go:' in line and ('Run' in line or 'defaultProjectsDir' in line)):
-                  continue
-
-              # Extract package name and coverage
-              match = re.search(r'/([^/]+)\.go.*?(\d+\.?\d*)%', line)
-              if match:
-                  pkg, cov = match.groups()
-                  cov = float(cov)
-                  if pkg not in package_cov or cov < package_cov[pkg]:
-                      package_cov[pkg] = cov
-
-          threshold = 80.0
-          failed = False
-          for pkg in sorted(package_cov.keys()):
-              cov = package_cov[pkg]
-              status = "PASS" if cov >= threshold else "FAIL"
-              print(f"{status}: package {pkg} has coverage {cov:.1f}%")
-              if cov < threshold:
-                  failed = True
-
-          sys.exit(1 if failed else 0)
-          EOSCRIPT
+          awk '
+            NR == 1 { next }                 # skip "mode: atomic" header
+            {
+              # Field 1 looks like "github.com/zpenka/lore/lore.go:19.20,24.16"
+              # Strip everything from the first colon onward to get the file path,
+              # then strip the trailing /<file>.go to get the package import path.
+              split($1, a, ":"); file = a[1]
+              pkg = file; sub(/\/[^\/]+$/, "", pkg)
+              if (pkg == "github.com/zpenka/lore/cmd/lore") next
+              total[pkg] += $2
+              if ($3 > 0) hit[pkg] += $2
+            }
+            END {
+              threshold = 80.0
+              failed = 0; n = 0
+              for (pkg in total) {
+                cov = (total[pkg] > 0) ? (100.0 * hit[pkg] / total[pkg]) : 0
+                status = (cov >= threshold) ? "PASS" : "FAIL"
+                printf "%s: %s = %.1f%% (%d/%d statements)\n", status, pkg, cov, hit[pkg], total[pkg]
+                if (cov < threshold) failed = 1
+                n++
+              }
+              if (n == 0) { print "FAIL: no packages found in coverage profile"; exit 1 }
+              exit failed
+            }
+          ' coverage.out

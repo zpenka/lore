@@ -5,6 +5,7 @@ package lore
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -16,13 +17,23 @@ const Version = "0.1.0-phase1"
 
 // Run is the entry point used by cmd/lore/main.go.
 func Run() error {
-	var showVersion bool
-	flag.BoolVar(&showVersion, "v", false, "print version and exit")
-	flag.BoolVar(&showVersion, "version", false, "print version and exit")
-	flag.Parse()
+	return runWith(os.Args[1:], os.Stdout)
+}
 
+// runWith is the testable core of Run. It parses args against an isolated flag
+// set (no global state), writes -v/--version output to out, and otherwise
+// launches the bubbletea program.
+func runWith(args []string, out io.Writer) error {
+	fs := flag.NewFlagSet("lore", flag.ContinueOnError)
+	fs.SetOutput(out)
+	var showVersion bool
+	fs.BoolVar(&showVersion, "v", false, "print version and exit")
+	fs.BoolVar(&showVersion, "version", false, "print version and exit")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if showVersion {
-		fmt.Println("lore", Version)
+		fmt.Fprintln(out, "lore", Version)
 		return nil
 	}
 
