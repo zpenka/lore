@@ -25,6 +25,11 @@ var (
 const chromeLines = 4
 
 func (m model) View() string {
+	// If help overlay is showing, render it instead of the normal view
+	if m.showHelp {
+		return renderHelpOverlay(m)
+	}
+
 	switch m.mode {
 	case modeDetail:
 		return renderDetailView(m)
@@ -561,4 +566,120 @@ func truncatePromptLine(s string, maxLen int) string {
 		return string(runes[:maxLen])
 	}
 	return string(runes[:maxLen-1]) + "…"
+}
+
+// renderHelpOverlay renders a help screen showing keybindings for the current mode.
+func renderHelpOverlay(m model) string {
+	var helpText string
+
+	switch m.mode {
+	case modeList:
+		helpText = `
+ ┌─ List Mode Help ─────────────────────────────────────────────────────────┐
+ │                                                                           │
+ │  Navigation:                                                              │
+ │    j/k, ↑/↓     Move cursor                                              │
+ │    g/G          Jump to top/bottom                                       │
+ │    enter, l, →  Open the highlighted session                            │
+ │                                                                           │
+ │  Filtering:                                                               │
+ │    p             Filter to one project (inline)                          │
+ │    b             Filter to one branch (inline)                           │
+ │    esc           Clear filter                                            │
+ │                                                                           │
+ │  Other:                                                                   │
+ │    P             Open project view for current session's CWD             │
+ │    /             Enter full-text search                                  │
+ │    ?             Show this help overlay                                  │
+ │    q             Quit                                                    │
+ │                                                                           │
+ └─────────────────────────────────────────────────────────────────────────┘
+`
+
+	case modeDetail:
+		helpText = `
+ ┌─ Detail Mode Help ────────────────────────────────────────────────────────┐
+ │                                                                            │
+ │  Navigation:                                                               │
+ │    j/k, ↑/↓     Scroll through turns                                      │
+ │    g/G          Jump to top/bottom                                        │
+ │                                                                            │
+ │  Turn Actions:                                                             │
+ │    space         Expand/collapse a tool turn (shows key: value)           │
+ │    y             Copy the nearest user prompt to clipboard                │
+ │    r             Enter re-run mode with the selected user prompt          │
+ │                                                                            │
+ │  Display:                                                                  │
+ │    t             Toggle thinking blocks (hidden by default)               │
+ │    ?             Show this help overlay                                   │
+ │                                                                            │
+ │  Return to List:                                                           │
+ │    esc, h, ←    Back to the session list                                  │
+ │                                                                            │
+ └────────────────────────────────────────────────────────────────────────┘
+`
+
+	case modeSearch:
+		helpText = `
+ ┌─ Search Mode Help ────────────────────────────────────────────────────────┐
+ │                                                                            │
+ │  Search Entry:                                                             │
+ │    Type         Build search query                                        │
+ │    enter        Run linear scan search                                    │
+ │    esc          Cancel, return to list                                    │
+ │                                                                            │
+ │  Search Results:                                                           │
+ │    j/k, ↑/↓     Move through results (sorted by hit count)               │
+ │    g/G          Jump to top/bottom                                        │
+ │    enter        Open the selected session in detail                       │
+ │    /            Re-search (edit query)                                    │
+ │    esc          Back to list                                              │
+ │    ?            Show this help overlay                                    │
+ │                                                                            │
+ └────────────────────────────────────────────────────────────────────────┘
+`
+
+	case modeProject:
+		helpText = `
+ ┌─ Project Mode Help ───────────────────────────────────────────────────────┐
+ │                                                                            │
+ │  Navigation:                                                               │
+ │    j/k, ↑/↓     Move within the project's sessions                        │
+ │    g/G          Jump to top/bottom                                        │
+ │    enter        Open session detail                                       │
+ │                                                                            │
+ │  Return to List:                                                           │
+ │    esc, q       Back to session list                                      │
+ │    ?            Show this help overlay                                    │
+ │                                                                            │
+ │  Sessions are grouped by branch (latest branch first).                    │
+ │                                                                            │
+ └────────────────────────────────────────────────────────────────────────┘
+`
+
+	case modeRerun:
+		helpText = `
+ ┌─ Re-run Mode Help ────────────────────────────────────────────────────────┐
+ │                                                                            │
+ │  Actions:                                                                  │
+ │    enter        Spawn 'claude' with the chosen prompt                     │
+ │                 (subprocess owns the TTY; lore exits cleanly on return)    │
+ │    esc, q       Cancel and return to detail view                          │
+ │    ?            Show this help overlay                                    │
+ │                                                                            │
+ └────────────────────────────────────────────────────────────────────────┘
+`
+
+	default:
+		helpText = `
+ ┌─ Help ────────────────────────────────────────────────────────────────────┐
+ │                                                                            │
+ │  Press ? in any mode to see mode-specific keybindings.                   │
+ │  Any key dismisses this help overlay.                                     │
+ │                                                                            │
+ └────────────────────────────────────────────────────────────────────────┘
+`
+	}
+
+	return helpText
 }
