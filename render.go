@@ -23,6 +23,8 @@ func (m model) View() string {
 		return renderDetailView(m)
 	case modeList:
 		return renderListView(m)
+	case modeSearch:
+		return renderSearchView(m)
 	}
 	return ""
 }
@@ -274,4 +276,82 @@ func padTrunc(s string, max int) string {
 		return s[:max-1] + "…"
 	}
 	return s + strings.Repeat(" ", max-len(s))
+}
+
+// renderSearchView renders the search mode (entry or results)
+func renderSearchView(m model) string {
+	var b strings.Builder
+
+	// Header
+	if m.searchMode == searchModeEntry {
+		headerLine := fmt.Sprintf(" search: %s_   [enter] run   [esc] cancel", m.searchQuery)
+		b.WriteString(headerStyle.Render(headerLine))
+	} else {
+		hitWord := "hit"
+		if len(m.searchResults) != 1 {
+			hitWord = "hits"
+		}
+		hitCount := 0
+		for _, r := range m.searchResults {
+			hitCount += r.HitCount
+		}
+		headerLine := fmt.Sprintf(" search: %s     %d %s across %d session%s",
+			m.searchQuery,
+			hitCount,
+			hitWord,
+			len(m.searchResults),
+			plural(len(m.searchResults)),
+		)
+		b.WriteString(headerStyle.Render(headerLine))
+	}
+	b.WriteByte('\n')
+
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+
+	// Body
+	if m.searchMode == searchModeEntry {
+		// Empty body during entry
+	} else if len(m.searchResults) == 0 {
+		b.WriteString(" (no matches)\n")
+	} else {
+		// Render results
+		for i, hit := range m.searchResults {
+			isSelected := (i == m.searchCursor)
+			line := fmt.Sprintf("  %s  %-12s  %-26s  %s",
+				hit.Session.Timestamp.Format("15:04"),
+				padTrunc(hit.Session.Project, 12),
+				padTrunc(hit.Session.Branch, 26),
+				hit.Session.Slug,
+			)
+			if isSelected {
+				b.WriteString(selectedStyle.Render(line))
+			} else {
+				b.WriteString(line)
+			}
+			b.WriteByte('\n')
+
+			// Snippet line (indented with marker)
+			snippetLine := "    ▸ " + hit.Snippet
+			if isSelected {
+				b.WriteString(selectedStyle.Render(snippetLine))
+			} else {
+				b.WriteString(snippetLine)
+			}
+			b.WriteByte('\n')
+		}
+	}
+
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+
+	// Footer
+	if m.searchMode == searchModeEntry {
+		b.WriteString(footerStyle.Render(" search: " + m.searchQuery + "_   [enter] run   [esc] cancel"))
+	} else {
+		b.WriteString(footerStyle.Render(" j/k move   enter open   / new search   esc back"))
+	}
+	b.WriteByte('\n')
+
+	return b.String()
 }

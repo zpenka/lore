@@ -368,3 +368,135 @@ func TestDetailView_RenderExpandedToolInputMultipleFields(t *testing.T) {
 func containsFold(haystack, needle string) bool {
 	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
 }
+
+// Search view tests
+
+func TestSearchView_EntryMode(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeSearch
+	m.searchMode = searchModeEntry
+	m.searchQuery = "hello"
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "hello") {
+		t.Errorf("search entry should show query: %s", out)
+	}
+	if !strings.Contains(out, "[enter]") || !strings.Contains(out, "[esc]") {
+		t.Errorf("search entry should show instructions: %s", out)
+	}
+}
+
+func TestSearchView_ResultsMode_Empty(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeSearch
+	m.searchMode = searchModeResults
+	m.searchQuery = "xyz"
+	m.searchResults = nil
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "no matches") {
+		t.Errorf("empty results should show '(no matches)': %s", out)
+	}
+}
+
+func TestSearchView_ResultsMode_WithHits(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeSearch
+	m.searchMode = searchModeResults
+	m.searchQuery = "token"
+	m.searchResults = []SearchHit{
+		{
+			Session:  Session{ID: "1", Slug: "s1", Project: "grit", Branch: "main", Timestamp: timeFromString("2026-05-01T14:30:00Z")},
+			HitCount: 3,
+			Snippet:  "refresh the token and rotate",
+		},
+		{
+			Session:  Session{ID: "2", Slug: "s2", Project: "api", Branch: "feat/auth", Timestamp: timeFromString("2026-05-01T13:00:00Z")},
+			HitCount: 1,
+			Snippet:  "handle token expiry",
+		},
+	}
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "token") {
+		t.Errorf("results should show query: %s", out)
+	}
+	if !strings.Contains(out, "s1") || !strings.Contains(out, "s2") {
+		t.Errorf("results should show session slugs: %s", out)
+	}
+	if !strings.Contains(out, "refresh the token") {
+		t.Errorf("results should show snippet: %s", out)
+	}
+	if !strings.Contains(out, "hits") {
+		t.Errorf("results should show 'hits' label: %s", out)
+	}
+}
+
+func TestSearchView_ResultsMode_CursorHighlight(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeSearch
+	m.searchMode = searchModeResults
+	m.searchQuery = "test"
+	m.searchResults = []SearchHit{
+		{
+			Session:  Session{ID: "1", Slug: "s1", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:00:00Z")},
+			HitCount: 1,
+			Snippet:  "test snippet 1",
+		},
+		{
+			Session:  Session{ID: "2", Slug: "s2", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T13:00:00Z")},
+			HitCount: 1,
+			Snippet:  "test snippet 2",
+		},
+	}
+	m.searchCursor = 1
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	// Both results should be rendered
+	if !strings.Contains(out, "s1") || !strings.Contains(out, "s2") {
+		t.Errorf("both results should be rendered: %s", out)
+	}
+}
+
+func TestSearchView_HeaderShowsHitCount(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeSearch
+	m.searchMode = searchModeResults
+	m.searchQuery = "auth"
+	m.searchResults = []SearchHit{
+		{Session: Session{ID: "1", Slug: "s1", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:00:00Z")}, HitCount: 5, Snippet: "auth"},
+		{Session: Session{ID: "2", Slug: "s2", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T13:00:00Z")}, HitCount: 2, Snippet: "auth"},
+	}
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "7") { // 5 + 2 hits
+		t.Errorf("header should show total hits (7): %s", out)
+	}
+}
+
+func TestSearchView_FooterSearchMode_Navigation(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeSearch
+	m.searchMode = searchModeResults
+	m.searchQuery = "test"
+	m.searchResults = []SearchHit{
+		{Session: Session{ID: "1", Slug: "s1", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:00:00Z")}, HitCount: 1, Snippet: "test"},
+	}
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "j/k") || !strings.Contains(out, "enter") {
+		t.Errorf("footer should show navigation hints: %s", out)
+	}
+}
