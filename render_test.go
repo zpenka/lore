@@ -363,6 +363,110 @@ func TestDetailView_RenderExpandedToolInputMultipleFields(t *testing.T) {
 	}
 }
 
+func TestRender_EditToolDiff(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{
+			kind: "tool",
+			body: "Edit /x.go",
+			input: map[string]interface{}{
+				"file_path":  "/x.go",
+				"old_string": "foo\nbar",
+				"new_string": "foo\nbaz",
+			},
+		},
+	}
+	m.expandedTurns = map[int]bool{0: true}
+	m.cursorDetail = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "/x.go") {
+		t.Errorf("Edit tool diff should show file path: %s", out)
+	}
+	if !strings.Contains(out, "- bar") {
+		t.Errorf("Edit tool diff should show removed line with '- ' prefix: %s", out)
+	}
+	if !strings.Contains(out, "+ baz") {
+		t.Errorf("Edit tool diff should show added line with '+ ' prefix: %s", out)
+	}
+	// Verify old and new context lines are present
+	if !strings.Contains(out, "- foo") {
+		t.Errorf("Edit tool diff should show old context line '- foo': %s", out)
+	}
+	if !strings.Contains(out, "+ foo") {
+		t.Errorf("Edit tool diff should show new context line '+ foo': %s", out)
+	}
+}
+
+func TestRender_WriteToolAddOnly(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{
+			kind: "tool",
+			body: "Write /y.go",
+			input: map[string]interface{}{
+				"file_path": "/y.go",
+				"content":   "hello\nworld",
+			},
+		},
+	}
+	m.expandedTurns = map[int]bool{0: true}
+	m.cursorDetail = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "/y.go") {
+		t.Errorf("Write tool should show file path: %s", out)
+	}
+	if !strings.Contains(out, "+ hello") {
+		t.Errorf("Write tool should show content line with '+ ' prefix: %s", out)
+	}
+	if !strings.Contains(out, "+ world") {
+		t.Errorf("Write tool should show content line with '+ ' prefix: %s", out)
+	}
+	if strings.Contains(out, "- ") {
+		t.Errorf("Write tool should NOT contain '- ' remove lines: %s", out)
+	}
+}
+
+func TestRender_BashToolUnchanged(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{
+			kind: "tool",
+			body: "Bash ls -la",
+			input: map[string]interface{}{
+				"command": "ls -la",
+			},
+		},
+	}
+	m.expandedTurns = map[int]bool{0: true}
+	m.cursorDetail = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "command") {
+		t.Errorf("Bash tool should show 'command' key: %s", out)
+	}
+	if !strings.Contains(out, "ls -la") {
+		t.Errorf("Bash tool should show command value: %s", out)
+	}
+	// Verify this uses key: value format, not diff format
+	if !strings.Contains(out, "command:") {
+		t.Errorf("Bash tool should use 'key:' format, not diff format: %s", out)
+	}
+}
+
 // helpers
 
 func containsFold(haystack, needle string) bool {
