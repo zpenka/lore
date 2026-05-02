@@ -80,6 +80,10 @@ type model struct {
 	// when a key press did nothing the user could see (e.g. `r` on a
 	// non-user turn). Cleared at the start of every keystroke.
 	flashMsg string
+
+	// showHelp indicates whether to display the help overlay instead of
+	// the normal view. Any key dismisses it.
+	showHelp bool
 }
 
 func newModel(projectsDir string) model {
@@ -207,6 +211,18 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if msg.Type == tea.KeyCtrlC {
 		return m, tea.Quit
+	}
+
+	// Handle help overlay: if showing, any key dismisses it (except ctrl-c above).
+	if m.showHelp {
+		m.showHelp = false
+		return m, nil
+	}
+
+	// If user presses ?, show help overlay.
+	if msg.String() == "?" {
+		m.showHelp = true
+		return m, nil
 	}
 
 	// Dispatch based on current mode
