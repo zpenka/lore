@@ -14,10 +14,11 @@ const (
 )
 
 // turn represents a single exchange in the detail view.
-// kind is "user", "asst" (assistant text), or "tool" (tool use).
+// kind is "user", "asst" (assistant text), "tool" (tool use), or "thinking".
 type turn struct {
-	kind string // "user", "asst", or "tool"
-	body string // the rendered text/snippet
+	kind  string                 // "user", "asst", "tool", or "thinking"
+	body  string                 // the rendered text/snippet
+	input map[string]interface{} // tool input (only for tool turns)
 }
 
 // rawEvent is the generic JSON event structure from JSONL
@@ -132,7 +133,7 @@ func extractUserTurns(ev *rawEvent) []turn {
 }
 
 // extractAssistantTurns parses assistant event and produces turns for each content block.
-// Thinking blocks are skipped.
+// Thinking blocks are parsed as kind="thinking" turns.
 func extractAssistantTurns(ev *rawEvent) []turn {
 	if ev.Message == nil || ev.Message.Content == nil {
 		return nil
@@ -166,7 +167,9 @@ func extractAssistantTurns(ev *rawEvent) []turn {
 				turns = append(turns, *toolTurn)
 			}
 		case "thinking":
-			// Skip thinking blocks
+			if text, ok := blockMap["thinking"].(string); ok && text != "" {
+				turns = append(turns, turn{kind: "thinking", body: text})
+			}
 		}
 	}
 
@@ -189,7 +192,13 @@ func extractToolTurn(blockMap map[string]interface{}) *turn {
 	snippet := toolSnippet(name, input)
 	body := name + " " + snippet
 
-	return &turn{kind: "tool", body: body}
+	// Store the full input for expansion
+	inputMap := make(map[string]interface{})
+	if inputVal, ok := input.(map[string]interface{}); ok {
+		inputMap = inputVal
+	}
+
+	return &turn{kind: "tool", body: body, input: inputMap}
 }
 
 // toolSnippet extracts a short snippet from tool input based on the tool name.

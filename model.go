@@ -41,18 +41,26 @@ type model struct {
 	appliedFilterMode int // Track which mode filter was applied in (used for display)
 
 	// Detail view state
-	mode          int     // modeList or modeDetail
-	detailSession Session // The session being displayed in detail
-	turns         []turn  // Parsed turns from the session
-	cursorDetail  int     // Cursor position in detail view
-	detailErr     error   // Error loading/parsing detail session
-	detailLoading bool    // True while loading session content
+	mode          int                // modeList or modeDetail
+	detailSession Session            // The session being displayed in detail
+	turns         []turn             // Parsed turns from the session
+	cursorDetail  int                // Cursor position in detail view
+	detailErr     error              // Error loading/parsing detail session
+	detailLoading bool               // True while loading session content
+	expandedTurns map[int]bool       // Tracks which turns are expanded (index -> expanded)
+	showThinking  bool               // Whether thinking turns are visible
+	justCopied    bool               // Brief flag set after successful copy
+	clipboardFn   func(string) error // Dependency-injected clipboard function
 }
 
 func newModel(projectsDir string) model {
 	return model{
-		projectsDir: projectsDir,
-		loading:     true,
+		projectsDir:   projectsDir,
+		loading:       true,
+		expandedTurns: make(map[int]bool),
+		showThinking:  false,
+		justCopied:    false,
+		clipboardFn:   copyToClipboard, // Default to real implementation
 	}
 }
 
@@ -188,14 +196,66 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeList
 		m.turns = nil
 		m.cursorDetail = 0
+		m.expandedTurns = make(map[int]bool)
+		m.showThinking = false
+		m.justCopied = false
 		return m, nil
 	case "j", "down":
-		if m.cursorDetail < len(m.turns)-1 {
+		visible := m.visibleTurns()
+		if m.cursorDetail < len(visible)-1 {
 			m.cursorDetail++
 		}
+		m.justCopied = false
 	case "k", "up":
 		if m.cursorDetail > 0 {
 			m.cursorDetail--
+		}
+		m.justCopied = false
+	case " ":
+		// Expand/collapse tool turn
+		visible := m.visibleTurns()
+		if m.cursorDetail < len(visible) {
+			t := visible[m.cursorDetail]
+			if t.kind == "tool" {
+				// Find the index in the full turns list
+				fullIdx := m.visibleIndexToFullIndex(m.cursorDetail)
+				m.expandedTurns[fullIdx] = !m.expandedTurns[fullIdx]
+			}
+		}
+		m.justCopied = false
+	case "t":
+		// Toggle thinking visibility
+		m.showThinking = !m.showThinking
+		visible := m.visibleTurns()
+		// Clamp cursor if it's on a hidden thinking turn
+		if m.cursorDetail >= len(visible) && len(visible) > 0 {
+			m.cursorDetail = len(visible) - 1
+		}
+		m.justCopied = false
+	case "y":
+		// Copy user turn
+		visible := m.visibleTurns()
+		copied := false
+		if m.cursorDetail < len(visible) {
+			t := visible[m.cursorDetail]
+			if t.kind == "user" {
+				// Copy current user turn
+				if err := m.clipboardFn(t.body); err == nil {
+					m.justCopied = true
+					copied = true
+				}
+			}
+		}
+		if !copied {
+			// Find most recent user turn before cursor
+			for i := m.cursorDetail - 1; i >= 0; i-- {
+				if visible[i].kind == "user" {
+					if err := m.clipboardFn(visible[i].body); err == nil {
+						m.justCopied = true
+					}
+					break
+				}
+			}
 		}
 	}
 	return m, nil
@@ -253,4 +313,33 @@ func (m model) matchesFilter(s Session) bool {
 	default:
 		return true
 	}
+}
+
+// visibleTurns returns the list of turns filtered by visibility (e.g., thinking blocks).
+func (m model) visibleTurns() []turn {
+	if m.showThinking {
+		return m.turns
+	}
+	// Filter out thinking turns
+	var visible []turn
+	for _, t := range m.turns {
+		if t.kind != "thinking" {
+			visible = append(visible, t)
+		}
+	}
+	return visible
+}
+
+// visibleIndexToFullIndex maps a cursor position in visibleTurns to the index in m.turns.
+func (m model) visibleIndexToFullIndex(visibleIdx int) int {
+	count := 0
+	for i, t := range m.turns {
+		if m.showThinking || t.kind != "thinking" {
+			if count == visibleIdx {
+				return i
+			}
+			count++
+		}
+	}
+	return -1
 }

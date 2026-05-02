@@ -243,6 +243,126 @@ func TestRenderFooter_BranchFilterApplied(t *testing.T) {
 	}
 }
 
+// Test detail view rendering
+
+func TestDetailView_RenderExpandedTool(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{kind: "tool", body: "Read file.go", input: map[string]interface{}{"file_path": "/path/to/file"}},
+	}
+	m.expandedTurns = map[int]bool{0: true}
+	m.cursorDetail = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "file_path") {
+		t.Errorf("expanded tool not rendered correctly: %s", out)
+	}
+}
+
+func TestDetailView_RenderThinkingMarker(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{kind: "thinking", body: "internal thought"},
+	}
+	m.showThinking = true
+	m.cursorDetail = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "〰") {
+		t.Errorf("thinking marker not rendered: %s", out)
+	}
+}
+
+func TestDetailView_DetailFooter_WithThinkingHidden(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{{kind: "user", body: "msg"}}
+	m.showThinking = false
+	m.justCopied = false
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "thinking") {
+		t.Errorf("footer should mention 'thinking': %s", out)
+	}
+	if !strings.Contains(out, "expand") {
+		t.Errorf("footer should mention 'expand': %s", out)
+	}
+	if !strings.Contains(out, "copy") {
+		t.Errorf("footer should mention 'copy': %s", out)
+	}
+}
+
+func TestDetailView_DetailFooter_WithThinkingShown(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{{kind: "user", body: "msg"}}
+	m.showThinking = true
+	m.justCopied = false
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "hide thinking") {
+		t.Errorf("footer should say 'hide thinking' when shown: %s", out)
+	}
+}
+
+func TestDetailView_DetailFooter_WithCopied(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{{kind: "user", body: "msg"}}
+	m.showThinking = false
+	m.justCopied = true
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "copied") {
+		t.Errorf("footer should show 'copied' status: %s", out)
+	}
+}
+
+func TestDetailView_RenderExpandedToolInputMultipleFields(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{
+			kind: "tool",
+			body: "Bash command",
+			input: map[string]interface{}{
+				"command": "ls -la",
+				"timeout": "30s",
+			},
+		},
+	}
+	m.expandedTurns = map[int]bool{0: true}
+	m.cursorDetail = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "command") {
+		t.Errorf("expanded tool should show command field: %s", out)
+	}
+	if !strings.Contains(out, "timeout") {
+		t.Errorf("expanded tool should show timeout field: %s", out)
+	}
+}
+
 // helpers
 
 func containsFold(haystack, needle string) bool {
