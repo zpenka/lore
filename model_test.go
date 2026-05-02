@@ -1,6 +1,8 @@
 package lore
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -490,4 +492,224 @@ func loadedModelWith(ss ...Session) model {
 	m.visibleSessions = ss
 	m.width = 100
 	return m
+}
+
+// Search mode tests
+
+func TestModel_PressSlash_EntersSearchMode(t *testing.T) {
+	m := loadedModel("a", "b")
+	next, _ := m.Update(keyMsg("/"))
+	nm := next.(model)
+	if nm.mode != modeSearch {
+		t.Errorf("after '/': mode = %d, want %d (modeSearch)", nm.mode, modeSearch)
+	}
+	if nm.searchMode != searchModeEntry {
+		t.Errorf("after '/': searchMode = %d, want %d (entry)", nm.searchMode, searchModeEntry)
+	}
+	if nm.searchQuery != "" {
+		t.Errorf("after '/': searchQuery = %q, want ''", nm.searchQuery)
+	}
+}
+
+func TestModel_SearchEntry_AppendRune(t *testing.T) {
+	m := loadedModel("a", "b")
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	
+	next, _ = m.Update(keyMsg("t"))
+	m = next.(model)
+	if m.searchQuery != "t" {
+		t.Errorf("after 't': searchQuery = %q, want 't'", m.searchQuery)
+	}
+	
+	next, _ = m.Update(keyMsg("o"))
+	m = next.(model)
+	if m.searchQuery != "to" {
+		t.Errorf("after 'to': searchQuery = %q, want 'to'", m.searchQuery)
+	}
+}
+
+func TestModel_SearchEntry_Backspace(t *testing.T) {
+	m := loadedModel("a", "b")
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("i"))
+	m = next.(model)
+	
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m = next.(model)
+	if m.searchQuery != "h" {
+		t.Errorf("after backspace: searchQuery = %q, want 'h'", m.searchQuery)
+	}
+	
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m = next.(model)
+	if m.searchQuery != "" {
+		t.Errorf("after second backspace: searchQuery = %q, want ''", m.searchQuery)
+	}
+}
+
+func TestModel_SearchEntry_Escape_ClearsAndReturnsToList(t *testing.T) {
+	m := loadedModel("a", "b")
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("x"))
+	m = next.(model)
+	
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = next.(model)
+	if m.mode != modeList {
+		t.Errorf("after esc: mode = %d, want %d (modeList)", m.mode, modeList)
+	}
+	if m.searchQuery != "" {
+		t.Errorf("after esc: searchQuery = %q, want ''", m.searchQuery)
+	}
+	if len(m.searchResults) != 0 {
+		t.Errorf("after esc: len(searchResults) = %d, want 0", len(m.searchResults))
+	}
+}
+
+func TestModel_SearchEntry_Enter_RunsSearch(t *testing.T) {
+	tmpdir := t.TempDir()
+	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello world"}}
+`)
+	
+	m := loadedModelWith(
+		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+	)
+	m.width = 100
+	
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("e"))
+	m = next.(model)
+	
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(model)
+	
+	if m.searchMode != searchModeResults {
+		t.Errorf("after enter: searchMode = %d, want %d (results)", m.searchMode, searchModeResults)
+	}
+	if len(m.searchResults) != 1 {
+		t.Errorf("after enter: len(searchResults) = %d, want 1", len(m.searchResults))
+	}
+	if m.searchCursor != 0 {
+		t.Errorf("after enter: searchCursor = %d, want 0", m.searchCursor)
+	}
+}
+
+func TestModel_SearchResults_Navigate(t *testing.T) {
+	tmpdir := t.TempDir()
+	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
+`)
+	session2 := writeTestSessionForModel(t, tmpdir, "sess2.jsonl", `
+{"type":"user","sessionId":"2","timestamp":"2026-05-01T11:00:00Z","cwd":"/test","gitBranch":"main","slug":"s2","message":{"content":"hello"}}
+`)
+	
+	m := loadedModelWith(
+		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+		Session{ID: "2", Slug: "s2", Path: session2, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T11:00:00Z")},
+	)
+	m.width = 100
+	
+	// Run search
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(model)
+	
+	if len(m.searchResults) != 2 {
+		t.Fatalf("len(searchResults) = %d, want 2", len(m.searchResults))
+	}
+	
+	next, _ = m.Update(keyMsg("j"))
+	m = next.(model)
+	if m.searchCursor != 1 {
+		t.Errorf("after j: searchCursor = %d, want 1", m.searchCursor)
+	}
+	
+	next, _ = m.Update(keyMsg("k"))
+	m = next.(model)
+	if m.searchCursor != 0 {
+		t.Errorf("after k: searchCursor = %d, want 0", m.searchCursor)
+	}
+}
+
+func TestModel_SearchResults_PressSlash_ReEntersSearch(t *testing.T) {
+	tmpdir := t.TempDir()
+	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
+`)
+	
+	m := loadedModelWith(
+		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+	)
+	m.width = 100
+	
+	// Run search
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(model)
+	
+	if m.searchMode != searchModeResults {
+		t.Fatalf("not in results mode")
+	}
+	
+	next, _ = m.Update(keyMsg("/"))
+	m = next.(model)
+	if m.searchMode != searchModeEntry {
+		t.Errorf("after '/': searchMode = %d, want %d (entry)", m.searchMode, searchModeEntry)
+	}
+	if m.searchQuery != "h" {
+		t.Errorf("after '/': searchQuery = %q, want 'h' (preserved)", m.searchQuery)
+	}
+}
+
+func TestModel_SearchResults_Escape_ReturnsToList(t *testing.T) {
+	tmpdir := t.TempDir()
+	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
+`)
+	
+	m := loadedModelWith(
+		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+	)
+	m.width = 100
+	
+	// Run search
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(model)
+	
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = next.(model)
+	if m.mode != modeList {
+		t.Errorf("after esc: mode = %d, want %d (modeList)", m.mode, modeList)
+	}
+	if len(m.searchResults) != 0 {
+		t.Errorf("after esc: len(searchResults) = %d, want 0 (cleared)", len(m.searchResults))
+	}
+}
+
+// helper
+func writeTestSessionForModel(t *testing.T, tmpdir, filename, content string) string {
+	path := filepath.Join(tmpdir, filename)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write session: %v", err)
+	}
+	return path
 }
