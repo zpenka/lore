@@ -243,6 +243,61 @@ func TestRenderFooter_BranchFilterApplied(t *testing.T) {
 	}
 }
 
+// Test detail view header turn position indicator
+
+func TestDetailView_HeaderShowsTurnPosition_FirstTurn(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test-session", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{kind: "user", body: "first message"},
+		{kind: "asst", body: "first response"},
+		{kind: "user", body: "second message"},
+	}
+	m.cursorDetail = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "turn 1/3") {
+		t.Errorf("header should show 'turn 1/3' when cursor is at 0: %s", out)
+	}
+}
+
+func TestDetailView_HeaderShowsTurnPosition_LastTurn(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test-session", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{kind: "user", body: "first message"},
+		{kind: "asst", body: "first response"},
+		{kind: "user", body: "second message"},
+	}
+	m.cursorDetail = 2
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "turn 3/3") {
+		t.Errorf("header should show 'turn 3/3' when cursor is at 2: %s", out)
+	}
+}
+
+func TestDetailView_HeaderNoTurnIndicator_WhenEmpty(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test-session", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = nil
+	m.cursorDetail = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if strings.Contains(out, "turn ") {
+		t.Errorf("header should not show turn indicator when there are no turns: %s", out)
+	}
+}
+
 // Test detail view rendering
 
 func TestDetailView_RenderExpandedTool(t *testing.T) {
