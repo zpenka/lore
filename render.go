@@ -215,11 +215,17 @@ func renderDetailView(m model) string {
 	var b strings.Builder
 
 	dateStr := m.detailSession.Timestamp.Format("2006-01-02")
-	headerLine := fmt.Sprintf(" %s · %s · %s   %s",
+	visible := m.visibleTurns()
+	turnInfo := ""
+	if len(visible) > 0 {
+		turnInfo = fmt.Sprintf("   turn %d/%d", m.cursorDetail+1, len(visible))
+	}
+	headerLine := fmt.Sprintf(" %s · %s · %s   %s%s",
 		m.detailSession.Slug,
 		m.detailSession.Project,
 		m.detailSession.Branch,
 		dateStr,
+		turnInfo,
 	)
 	b.WriteString(headerStyle.Render(headerLine))
 	b.WriteByte('\n')
