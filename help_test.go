@@ -171,3 +171,18 @@ func TestRender_HelpOverlayInRerunMode(t *testing.T) {
 		t.Error("help output should contain 'Re-run Mode Help' header")
 	}
 }
+
+func TestRender_HelpOverlayInStatsMode(t *testing.T) {
+	m := loadedModel("a", "b")
+	m.mode = modeStats
+	m.statsData = []statsRow{}
+	m.width = 80
+	m.height = 24
+	m.showHelp = true
+
+	out := m.View()
+
+	if !strings.Contains(out, "Usage Stats Mode Help") {
+		t.Error("help output should contain 'Usage Stats Mode Help' header")
+	}
+}

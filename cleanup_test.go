@@ -16,7 +16,7 @@ func TestListFooter_AdvertisesAllBoundKeys(t *testing.T) {
 	m.height = 25
 
 	out := m.View()
-	for _, want := range []string{"enter", "/", "P", "p ", "b ", "g/G"} {
+	for _, want := range []string{"enter", "/", "P", "p ", "b ", "g/G", "S "} {
 		if !strings.Contains(out, want) {
 			t.Errorf("list footer missing %q — keys are bound but not advertised:\n%s", want, out)
 		}

@@ -56,6 +56,56 @@ func TestRunWith_UnknownFlag(t *testing.T) {
 	}
 }
 
+// ----- resolveProjectsDir tests -----
+
+func TestResolveProjectsDir_FlagTakesPrecedence(t *testing.T) {
+	t.Setenv("LORE_PROJECTS_DIR", "/env/dir")
+	got, err := resolveProjectsDir("/flag/dir")
+	if err != nil {
+		t.Fatalf("resolveProjectsDir: %v", err)
+	}
+	if got != "/flag/dir" {
+		t.Errorf("got %q, want '/flag/dir' (flag should beat env)", got)
+	}
+}
+
+func TestResolveProjectsDir_EnvUsedWhenNoFlag(t *testing.T) {
+	t.Setenv("LORE_PROJECTS_DIR", "/env/dir")
+	got, err := resolveProjectsDir("")
+	if err != nil {
+		t.Fatalf("resolveProjectsDir: %v", err)
+	}
+	if got != "/env/dir" {
+		t.Errorf("got %q, want '/env/dir' (env should be used)", got)
+	}
+}
+
+func TestResolveProjectsDir_DefaultWhenNeitherSet(t *testing.T) {
+	t.Setenv("LORE_PROJECTS_DIR", "")
+	got, err := resolveProjectsDir("")
+	if err != nil {
+		t.Fatalf("resolveProjectsDir: %v", err)
+	}
+	home, _ := os.UserHomeDir()
+	want := filepath.Join(home, ".claude", "projects")
+	if got != want {
+		t.Errorf("got %q, want %q (default)", got, want)
+	}
+}
+
+func TestRunWith_DirFlag(t *testing.T) {
+	// --dir flag should be accepted without error (will just fail to load sessions from nonexistent dir)
+	var buf bytes.Buffer
+	// We only need to ensure the flag parses; the TUI won't launch because
+	// we're passing -v alongside it.
+	if err := runWith([]string{"--dir", "/tmp/nonexistent-lore-test", "-v"}, &buf); err != nil {
+		t.Fatalf("runWith(--dir, -v): %v", err)
+	}
+	if !strings.Contains(buf.String(), Version) {
+		t.Errorf("output = %q, want version", buf.String())
+	}
+}
+
 // TestRun_VersionPath exercises the public Run() entry point through os.Args
 // so the wiring from os.Args / os.Stdout into runWith is covered.
 func TestRun_VersionPath(t *testing.T) {
