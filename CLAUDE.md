@@ -6,18 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **lore** is a keyboard-driven TUI (Terminal User Interface) for browsing Claude Code session history. It reads session transcripts from `~/.claude/projects/<encoded-cwd>/*.jsonl` and provides rich navigation, filtering, and search across sessions.
 
-Current status: **v0.5.0 — Phases 1–4, 5b, and partial Phase 7 complete.** Implemented:
+Current status: **v0.5.0 — Phases 1–5 and most of Phase 7 complete.** Implemented:
 
 - Session list (3.1) with relative-time bucketing.
 - Inline project (`p`), branch (`b`), and fuzzy (`f`) filters with fuzzy ranking.
 - Session detail (3.2) with collapsible tool turns, thinking toggle, copy-prompt, re-run, diff rendering for `Edit` / `Write` tool calls, and turn position indicator (`turn N/M`).
-- Linear-scan full-text search (3.3 v1).
+- Full-text search (3.3): SQLite FTS5 index (Phase 5a) with linear-scan fallback.
 - Project view (3.4) grouped by branch.
 - Re-run (3.5) via `tea.ExecProcess` so the spawned `claude` owns the TTY cleanly. Returns to the session list on exit and surfaces spawn errors.
+- Usage stats panel (Phase 5c, `S` key): token counts and estimated cost per session.
+- Configurable projects directory (`--dir` flag, `LORE_PROJECTS_DIR` env var).
 - Help overlay (`?`) with mode-specific keybindings.
 - Per-mode viewport scrolling, mode-specific footers, and one-shot flash messages for no-op keys.
 
-Next phases: 5a (FTS5 index), 5c (cost/usage stats), and remaining Phase 7 items (sidechain handling, configurable projects dir). The Phase 6 repo split has already happened — this is the standalone `github.com/zpenka/lore` module.
+Outstanding: sidechain handling (the only remaining Phase 7 item). The Phase 6 repo split has already happened — this is the standalone `github.com/zpenka/lore` module.
 
 See `DESIGN.md` for the full product vision and phasing roadmap.
 
@@ -33,9 +35,15 @@ go build ./cmd/lore
 
 # Or run directly
 go run ./cmd/lore
+
+# Point lore at a non-default projects dir
+./lore --dir /path/to/projects
+LORE_PROJECTS_DIR=/path/to/projects ./lore
 ```
 
-The binary reads from `~/.claude/projects/` (created by Claude Code), scans for `.jsonl` session transcripts, and displays them in a sortable list grouped by recency (today, yesterday, this week, etc.).
+The binary reads from `~/.claude/projects/` (created by Claude Code) by default, scans for `.jsonl` session transcripts, and displays them in a sortable list grouped by recency (today, yesterday, this week, etc.). The projects directory can be overridden via the `--dir` flag (highest precedence) or the `LORE_PROJECTS_DIR` environment variable; resolution lives in `lore.go::resolveProjectsDir`.
+
+The FTS5 search index is cached at `<os.UserCacheDir>/lore/index.db` (e.g. `~/.cache/lore/index.db` on Linux, `~/Library/Caches/lore/index.db` on macOS) and is populated lazily on first search.
 
 ## Tests
 
@@ -66,13 +74,15 @@ The project uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) for th
 
 **Main files:**
 
-- `lore.go`: Entry point. `Run()` parses flags (`-v`/`--version`), locates `~/.claude/projects`, and starts the Bubble Tea program.
-- `model.go`: The Bubble Tea `model` struct and per-mode key dispatchers (`handleListKey`, `handleDetailKey`, `handleSearchKey`, `handleProjectKey`, `handleRerunKey`, `handleFilterEntryKey`).
-- `render.go`: `View()`, mode-specific renderers (`renderListView`, `renderDetailView`, `renderSearchView`, etc.), the help overlay, and all Lipgloss styles.
+- `lore.go`: Entry point. `Run()` parses flags (`-v`/`--version`, `--dir`), resolves the projects dir (`--dir` > `LORE_PROJECTS_DIR` > `~/.claude/projects`), and starts the Bubble Tea program.
+- `model.go`: The Bubble Tea `model` struct and per-mode key dispatchers (`handleListKey`, `handleDetailKey`, `handleSearchKey`, `handleProjectKey`, `handleRerunKey`, `handleStatsKey`, `handleFilterEntryKey`). Also lazy-opens the FTS5 index on first search.
+- `render.go`: `View()`, mode-specific renderers (`renderListView`, `renderDetailView`, `renderSearchView`, `renderStatsView`, etc.), the help overlay, and all Lipgloss styles.
 - `session.go`: `Session` struct and `scanSessions()` / `parseSessionMetadata()` — reads only the first `user` event of each `.jsonl`.
 - `bucket.go`: `timeBucket()` returns labels like "today", "yesterday", "this week" for relative-time grouping.
-- `detail.go`: Mode constants, `turn` struct, `parseTurnsFromJSONL()`, and assistant/tool block extraction.
-- `search.go`: `searchSessions()` — linear-scan full-text search returning `SearchHit`s ranked by hit count.
+- `detail.go`: Mode constants (`modeList`, `modeDetail`, `modeSearch`, `modeProject`, `modeRerun`, `modeStats`), `turn` struct, `parseTurnsFromJSONL()`, and assistant/tool block extraction.
+- `search.go`: `searchSessions()` — linear-scan full-text search returning `SearchHit`s ranked by hit count. Used as the fallback path when the FTS5 index is unavailable.
+- `index.go`: SQLite FTS5 search index. `OpenIndex(cacheDir)`, `Index.Sync(projectsDir)` for incremental mtime-based reindexing, `Index.Search(query)` for ranked FTS5 lookups, and `extractSessionText()` for indexable content.
+- `stats.go`: Usage-stats data layer. `parseSessionStats()` sums `assistant.message.usage` token counts; `estimateCost()` applies a per-million-token pricing table (Opus / Sonnet / Haiku); `formatTokenCount()` adds k/M suffixes.
 - `project.go`: `groupByBranch()` and project-view rendering helpers.
 - `filter.go`: `fuzzyFilterCandidates()` — wraps `github.com/sahilm/fuzzy` for the `p` / `b` inline filters.
 - `clipboard.go`: `copyToClipboard()` — tries pbcopy, wl-copy, then xclip.
@@ -92,16 +102,17 @@ The project uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) for th
 - `Slug`: Human-readable session label auto-generated by Claude Code.
 - `Timestamp`: Extracted from the first user event.
 
-**Model**: Bubble Tea state machine. The `mode` field switches between `modeList`, `modeDetail`, `modeSearch`, `modeProject`, and `modeRerun`. Each mode has its own cursor and viewport offset (`listOffset`, `detailOffset`, `searchOffset`, `projectOffset`) so navigating away and back preserves position.
+**Model**: Bubble Tea state machine. The `mode` field switches between `modeList`, `modeDetail`, `modeSearch`, `modeProject`, `modeRerun`, and `modeStats`. Each mode has its own cursor and viewport offset (`listOffset`, `detailOffset`, `searchOffset`, `projectOffset`, `statsOffset`) so navigating away and back preserves position.
 
 Notable per-mode state:
-- **List**: `sessions`, `visibleSessions`, `cursor`, `filterMode` / `filterText` / `appliedFilterMode` for the inline `p` / `b` filters.
+- **List**: `sessions`, `visibleSessions`, `cursor`, `filterMode` / `filterText` / `appliedFilterMode` for the inline `p` / `b` / `f` filters.
 - **Detail**: `detailSession`, `turns`, `cursorDetail`, `expandedTurns` (which tool turns are unfolded), `showThinking`, `justCopied`.
-- **Search**: `searchMode` (entry vs. results), `searchQuery`, `searchResults`, `searchCursor`.
+- **Search**: `searchMode` (entry vs. results), `searchQuery`, `searchResults`, `searchCursor`. The FTS5 `index` is lazy-opened on the first `enter` press and falls back to linear scan on miss/error.
 - **Project**: `projectCWD`, `projectSessions`, `projectCursor`.
 - **Rerun**: `rerunPrompt`, `rerunCWD`, plus an injectable `rerunFn` so tests can substitute `tea.ExecProcess`.
+- **Stats**: `statsData` (slice of `statsRow`), `statsCursor`, `statsOffset`. Computed by `computeStatsRows` from the in-memory session list when `S` is pressed.
 
-The model also injects `clipboardFn` (default `copyToClipboard`) and `rerunFn` (default `rerunClaude`) so tests can swap real-system effects for fakes.
+The model also injects `clipboardFn` (default `copyToClipboard`) and `rerunFn` (default `rerunClaude`) so tests can swap real-system effects for fakes. The `projectsDir` field carries the resolved projects path so the FTS5 sync knows where to walk.
 
 ### Session File Format
 
@@ -126,8 +137,9 @@ Example first user event:
 - `github.com/charmbracelet/bubbletea`: TUI framework.
 - `github.com/charmbracelet/lipgloss`: Styling for headers, dividers, selected rows, etc.
 - `github.com/sahilm/fuzzy`: Fuzzy ranking for the `p` / `b` / `f` filters.
+- `modernc.org/sqlite`: Pure-Go SQLite driver backing the Phase 5a FTS5 search index.
 
-Phase 5a will add `modernc.org/sqlite` (pure-Go SQLite for the FTS5 index). Don't add other dependencies without updating `DESIGN.md` first.
+Don't add other dependencies without updating `DESIGN.md` first.
 
 ### Keyboard Navigation
 
@@ -141,6 +153,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `b`: Inline branch filter.
 - `f`: Fuzzy filter across slug, project, and branch simultaneously.
 - `P`: Open the project view scoped to the selected session's CWD.
+- `S`: Open the usage stats panel.
 - `/`: Enter full-text search.
 - `esc`: Clear an applied filter.
 - `?`: Show help overlay.
@@ -161,6 +174,8 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 **Project mode** (`modeProject`): `j` / `k`, `g` / `G`, `enter`, `esc` / `q`. Sessions are grouped by branch with the latest branch first.
 
 **Re-run mode** (`modeRerun`): `enter` to spawn `claude` with the chosen prompt and CWD (lore returns to the session list when `claude` exits); `esc` / `q` to cancel and return to detail.
+
+**Stats mode** (`modeStats`): `j` / `k`, `g` / `G` to navigate the per-session table; `esc` / `q` to return to the list. Columns: project · branch · model · input tokens · output tokens · estimated cost. Token counts use `k` / `M` suffixes; cost is computed from a built-in pricing table for Opus / Sonnet / Haiku families and shown as `--` for unknown models.
 
 ### Testing Strategy
 
@@ -184,13 +199,13 @@ Body math goes through one of `listBodyLines`, `detailBodyLines`, `searchBodyLin
 |---|---|
 | 1 — Session list (3.1) | ✅ Complete |
 | 2 — Session detail (3.2) | ✅ Complete (incl. tool expansion, thinking toggle, diff rendering) |
-| 3 — Search v1 linear scan (3.3) | ✅ Complete |
+| 3 — Search v1 linear scan (3.3) | ✅ Complete (kept as fallback) |
 | 4 — Project view (3.4) and re-run (3.5) | ✅ Complete |
-| 5a — SQLite FTS5 search index | ⏳ Future |
+| 5a — SQLite FTS5 search index | ✅ Complete (`index.go`, lazy-opened on first search, falls back to linear scan) |
 | 5b — List-level fuzzy matching (`f` key) | ✅ Complete |
-| 5c — Cost/usage stats panel | ⏳ Future (research done — token data is in JSONL) |
+| 5c — Cost/usage stats panel | ✅ Complete (`stats.go`, `S` from list mode) |
 | 6 — Repo split into `github.com/zpenka/lore` | ✅ Done (this is that repo) |
-| 7 — Quality-of-life | 🔶 Partial (`h`/`←` back-nav, re-run return-to-list, turn indicator done; sidechain + configurable dir remaining) |
+| 7 — Quality-of-life | 🔶 Partial (back-nav, re-run return-to-list, turn indicator, configurable projects dir done; sidechain handling remaining) |
 
 ## Repo Layout
 
@@ -200,14 +215,16 @@ lore/
 ├── DESIGN.md           # Product vision & phasing
 ├── README.md           # High-level project description
 ├── go.mod, go.sum
-├── lore.go             # Entry point, Run()
+├── lore.go             # Entry point, Run(), resolveProjectsDir()
 ├── model.go            # Bubble Tea model + per-mode key dispatchers
 ├── render.go           # View(), per-mode renderers, help overlay, Lipgloss styles
 ├── session.go          # Session struct, scanSessions(), parseSessionMetadata()
 ├── detail.go           # Mode constants, turn struct, JSONL → turns parser
-├── search.go           # Linear-scan full-text search
+├── search.go           # Linear-scan full-text search (fallback path)
+├── index.go            # SQLite FTS5 search index (Phase 5a)
+├── stats.go            # Token-usage parsing + cost estimation (Phase 5c)
 ├── project.go          # Branch grouping + project view rendering
-├── filter.go           # Fuzzy-ranked p/b inline filter
+├── filter.go           # Fuzzy-ranked p/b/f inline filter
 ├── clipboard.go        # pbcopy / wl-copy / xclip wrapper
 ├── rerun.go            # tea.ExecProcess wrapper for the claude child process
 ├── viewport.go         # clampOffset() + sliceLines() scrolling primitives
