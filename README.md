@@ -15,7 +15,7 @@ go build ./cmd/lore
 
 The tool reads session transcripts from `~/.claude/projects/` and displays them in a sortable, navigable list.
 
-**Current status (v0.4.0)**: Phases 1–4 complete — session list with project/branch filters, session detail with tool expansion and diff rendering, linear-scan search, project view, and re-run. Next up: FTS5 indexed search (5a), list-level fuzzy matching (5b), cost/usage stats (5c), and quality-of-life improvements (7). See `DESIGN.md` for the full vision and roadmap.
+**Current status (v0.5.0)**: Phases 1–4, 5b, and partial Phase 7 complete — session list with project/branch/fuzzy filters, session detail with tool expansion, diff rendering, and turn position indicator, linear-scan search, project view, and re-run (returns to list on exit). Next up: FTS5 indexed search (5a), cost/usage stats (5c), and remaining QoL items. See `DESIGN.md` for the full vision and roadmap.
 
 ## Navigation
 
