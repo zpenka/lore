@@ -260,7 +260,7 @@ func renderDetailFooter(m model) string {
 		copyStatus = "  ✓ copied"
 	}
 	return footerStyle.Render(fmt.Sprintf(
-		" j/k move   g/G top/bottom   space expand   t %s   y copy   r run   q/esc back%s",
+		" j/k move   g/G top/bottom   space expand   t %s   y copy   r run   q/esc/h/← back%s",
 		thinkingLabel, copyStatus))
 }
 
@@ -620,7 +620,7 @@ func renderHelpOverlay(m model) string {
  │    ?             Show this help overlay                                   │
  │                                                                            │
  │  Return to List:                                                           │
- │    esc, q       Back to the session list                                  │
+ │    esc, q, h, ←  Back to the session list                                  │
  │                                                                            │
  └────────────────────────────────────────────────────────────────────────┘
 `

@@ -332,7 +332,7 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleDetailKey handles keys in detail mode.
 func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "esc":
+	case "q", "esc", "h", "left":
 		// Return to list mode (preserve cursor in list)
 		m.mode = modeList
 		m.turns = nil

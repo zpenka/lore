@@ -952,3 +952,60 @@ func TestModel_Rerun_PressQ_ReturnsToDetail(t *testing.T) {
 		t.Errorf("after 'q' in rerun: mode = %d, want %d (modeDetail)", nm.mode, modeDetail)
 	}
 }
+
+// Detail mode back-navigation: h and left arrow
+
+func TestModel_Detail_PressH_ReturnsToList(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeDetail
+	m.detailSession = m.sessions[0]
+	m.turns = []turn{{kind: "user", body: "hello"}}
+	m.cursorDetail = 0
+	m.width = 100
+
+	next, _ := m.Update(keyMsg("h"))
+	nm := next.(model)
+
+	if nm.mode != modeList {
+		t.Errorf("after 'h' in detail: mode = %d, want %d (modeList)", nm.mode, modeList)
+	}
+}
+
+func TestModel_Detail_PressLeft_ReturnsToList(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeDetail
+	m.detailSession = m.sessions[0]
+	m.turns = []turn{{kind: "user", body: "hello"}}
+	m.cursorDetail = 0
+	m.width = 100
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	nm := next.(model)
+
+	if nm.mode != modeList {
+		t.Errorf("after left arrow in detail: mode = %d, want %d (modeList)", nm.mode, modeList)
+	}
+}
+
+func TestModel_Detail_PressH_InFilterEntry_TypesH(t *testing.T) {
+	// 'h' while in filter entry (list mode, filterMode active) should append
+	// to filterText, not go back.
+	m := loadedModel("a", "b")
+	// Enter filter entry mode
+	next, _ := m.Update(keyMsg("p"))
+	m = next.(model)
+	if m.filterMode != filterModeProject {
+		t.Fatalf("expected filterModeProject, got %d", m.filterMode)
+	}
+
+	// Pressing 'h' should type into filter, not navigate
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+
+	if m.filterText != "h" {
+		t.Errorf("after 'h' in filter entry: filterText = %q, want 'h'", m.filterText)
+	}
+	if m.mode != modeList {
+		t.Errorf("after 'h' in filter entry: mode = %d, want %d (modeList, should not change)", m.mode, modeList)
+	}
+}
