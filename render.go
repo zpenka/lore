@@ -614,7 +614,7 @@ func renderHelpOverlay(m model) string {
  │    ?             Show this help overlay                                   │
  │                                                                            │
  │  Return to List:                                                           │
- │    esc, h, ←    Back to the session list                                  │
+ │    esc, q       Back to the session list                                  │
  │                                                                            │
  └────────────────────────────────────────────────────────────────────────┘
 `

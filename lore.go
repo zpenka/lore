@@ -13,7 +13,7 @@ import (
 )
 
 // Version is the lore binary version. Bumped manually until we wire releases.
-const Version = "0.1.0-phase1"
+const Version = "0.4.0"
 
 // Run is the entry point used by cmd/lore/main.go.
 func Run() error {
