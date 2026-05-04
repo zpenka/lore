@@ -3,6 +3,7 @@ package lore
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -86,6 +87,9 @@ type model struct {
 	// showHelp indicates whether to display the help overlay instead of
 	// the normal view. Any key dismisses it.
 	showHelp bool
+
+	// FTS5 search index (nil until first search; fallback to linear scan if nil)
+	index *Index
 }
 
 func newModel(projectsDir string) model {
@@ -444,8 +448,27 @@ func (m model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) handleSearchEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEnter:
-		// Run search
-		m.searchResults = searchSessions(m.sessions, m.searchQuery)
+		// Lazy-open the FTS5 index on first search
+		if m.index == nil && m.projectsDir != "" {
+			cacheDir, err := indexCacheDir()
+			if err == nil {
+				idx, err := OpenIndex(filepath.Dir(cacheDir))
+				if err == nil {
+					idx.Sync(m.projectsDir)
+					m.index = idx
+				}
+			}
+		}
+		// Try indexed search, fall back to linear scan
+		if m.index != nil {
+			if hits, err := m.index.Search(m.searchQuery); err == nil && len(hits) > 0 {
+				m.searchResults = hits
+			} else {
+				m.searchResults = searchSessions(m.sessions, m.searchQuery)
+			}
+		} else {
+			m.searchResults = searchSessions(m.sessions, m.searchQuery)
+		}
 		m.searchMode = searchModeResults
 		m.searchCursor = 0
 	case tea.KeyEsc:
