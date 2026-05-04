@@ -1,6 +1,7 @@
 package lore
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -191,12 +192,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case rerunDoneMsg:
-		// Claude has exited (or failed to launch). v1 quits lore so the
-		// terminal returns cleanly to the user; they can re-launch lore
-		// manually. The error is currently discarded — surfacing it to
-		// the user is a follow-up.
-		_ = msg.err
-		return m, tea.Quit
+		// Claude has exited (or failed to launch). Return to the session
+		// list and reload sessions so any new session created by the re-run
+		// appears immediately. Surface spawn errors via a flash message.
+		m.mode = modeList
+		if msg.err != nil {
+			m.flashMsg = fmt.Sprintf("re-run failed: %v", msg.err)
+		}
+		return m, loadSessionsCmd(m.projectsDir)
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
