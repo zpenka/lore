@@ -2,11 +2,10 @@
 
 A keyboard-driven TUI for browsing your Claude Code session history.
 
-> **Status:** v0.5.0 — Phases 1–4, 5b, and partial Phase 7 implemented.
+> **Status:** v0.5.0 — Phases 1–5 and most of Phase 7 implemented.
 > The repo split (Phase 6) has happened — this is the standalone
-> `github.com/zpenka/lore` module. Next up: Phase 5a (FTS5 index),
-> 5c (cost/usage stats), and remaining Phase 7 items.
-> See [Phasing](#phasing) for status.
+> `github.com/zpenka/lore` module. Sidechain handling is the only
+> outstanding Phase 7 item. See [Phasing](#phasing) for status.
 >
 > Name landed on `lore`.
 
@@ -190,9 +189,11 @@ asst   │ ▸ Write /root/.claude/plans/hey-so-i-want-twinkly-aho.md
 ```
 
 - v1: linear scan of JSONL files, only `user` and `text`/`assistant` content.
-  Plenty fast for a few thousand sessions.
-- v2 (later phase): SQLite FTS5 index in `~/.claude/lore/cache.db`, refreshed
-  on session-file mtime change.
+  Plenty fast for a few thousand sessions; remains as a fallback path.
+- v2 (Phase 5a, ✅ done): SQLite FTS5 index under the platform user-cache
+  dir (e.g. `~/.cache/lore/index.db` on Linux), refreshed on session-file
+  mtime change. See [Phase 5a](#phase-5a--sqlite-fts5-search-index-)
+  below for details.
 
 ### 3.4 Project view — sessions grouped by repo
 
@@ -278,27 +279,37 @@ Nothing else. Stay lean.
 | 2 | **Session detail** (3.2) with collapsed tool calls and diff rendering | ✅ Done |
 | 3 | **Search** (3.3) v1 — linear scan | ✅ Done |
 | 4 | **Project view** (3.4) and **re-run** (3.5) | ✅ Done |
-| 5a | **SQLite FTS5 search index** — replace linear scan with indexed full-text search | ⏳ Future |
+| 5a | **SQLite FTS5 search index** — replace linear scan with indexed full-text search | ✅ Done |
 | 5b | **List-level fuzzy matching** — `f` key, matches across slug+project+branch | ✅ Done |
-| 5c | **Cost/usage stats panel** — token usage and cost aggregated by project/branch/day/model | ⏳ Future |
+| 5c | **Cost/usage stats panel** — token usage and estimated cost per session | ✅ Done |
 | 6 | Standalone `github.com/zpenka/lore` repo | ✅ Done |
-| 7 | **Quality-of-life** — sidechain handling, re-run UX, back-nav, turn indicator, configurable dir | 🔶 Partial |
+| 7 | **Quality-of-life** — sidechain handling, re-run UX, back-nav, turn indicator, configurable dir | 🔶 Partial (sidechain remaining) |
 
 Beyond the phased work, several quality-of-life items also landed:
 inline fuzzy ranking for the `p` / `b` filters, a `?` help overlay with
 mode-specific keybindings, per-mode viewport scrolling with edge-snap
 offsets, and one-shot flash messages for no-op keys.
 
-### Phase 5a — SQLite FTS5 search index
+### Phase 5a — SQLite FTS5 search index ✅
 
-Replace the linear-scan `searchSessions()` with an FTS5-backed index.
+Implemented in `index.go`. Replaces the linear-scan path lazily on first
+search.
 
-- Add `modernc.org/sqlite` (pure-Go SQLite driver, already planned).
-- Cache DB at `~/.cache/lore/index.db` (XDG-friendly, outside `~/.claude/`).
-- On launch, diff session file mtimes against the index; re-index only
-  changed files. Full rebuild on first run or schema change.
-- Search query goes through FTS5 `MATCH`; results scored by `rank`.
-- Fallback: if index is missing or corrupt, degrade to linear scan.
+- `modernc.org/sqlite` (pure-Go) drives an FTS5 virtual table
+  `sessions_fts(session_path, content)` plus a `session_meta(path, mtime_ns)`
+  table for incremental sync.
+- Cache DB lives under the platform-appropriate user cache dir
+  (`os.UserCacheDir()` → `lore/index.db`).
+- `Index.Sync(projectsDir)` walks the projects dir, compares mtimes
+  against `session_meta`, and re-indexes only changed files. Deleted
+  files are pruned.
+- `extractSessionText` concatenates all `user` and `assistant` text
+  blocks (skipping `tool_use` and `thinking`) for indexing.
+- Search query is split into terms, each FTS5-quoted, joined with spaces;
+  results are ordered by `rank` and rendered with FTS5 `snippet()`.
+- Fallback: if the index can't be opened or returns zero hits, the
+  search transparently degrades to the original linear scan
+  (`searchSessions`).
 
 ### Phase 5b — List-level fuzzy matching
 
@@ -310,16 +321,23 @@ types, across slug, project, and branch fields simultaneously.
   keystroke re-ranks `visibleSessions` in place.
 - Distinct from `p` / `b` which scope to a single dimension.
 
-### Phase 5c — Cost/usage stats
+### Phase 5c — Cost/usage stats ✅
 
-New `modeStats` mode aggregating token usage and estimated cost.
+Implemented as `modeStats` in `stats.go` and `render.go::renderStatsView`.
 
-- Parse `assistant` events for token-count fields (need to verify what
-  Claude Code actually writes to the JSONL — sample real files first).
-- Dimensions: project, branch, day, model.
-- Entry point: new key from list mode (e.g. `$` or `S`).
-- Open question: are token counts reliably present in the JSONL, or do
-  they need to be inferred from message length?
+- `parseSessionStats` sums `input_tokens`, `output_tokens`,
+  `cache_creation_input_tokens`, and `cache_read_input_tokens` across
+  every `assistant` event in the JSONL. The model is taken from the
+  most recent assistant event with a non-empty `model` string.
+- `estimateCost` applies a simple per-million-token pricing table
+  (Opus / Sonnet / Haiku) with a 10% rate for cache reads and full input
+  rate for cache writes. Unknown models render `--`.
+- Entry point: `S` from list mode → `modeStats`. Footer: `j`/`k`,
+  `g`/`G`, `esc`/`q`.
+- Columns rendered per row: project · branch · model · input tokens
+  (with `k`/`M` suffix) · output tokens · estimated cost.
+- Token data is reliably present in the JSONL; no message-length
+  inference is needed.
 
 ### Phase 7 — Quality-of-life
 
@@ -333,8 +351,10 @@ Smaller improvements identified during the 0.4.0 code review:
 - ~~**`h` / `←` back-navigation in detail mode.**~~ ✅ Done — both keys
   now go back from detail to list.
 - ~~**Turn position indicator.**~~ ✅ Done — header shows "turn N/M".
-- **Configurable projects dir.** Support `LORE_PROJECTS_DIR` env var
-  and/or `--dir` flag for non-default `~/.claude/projects/` locations.
+- ~~**Configurable projects dir.**~~ ✅ Done — `--dir` flag (highest
+  precedence) and `LORE_PROJECTS_DIR` env var both override the default
+  `~/.claude/projects/` location. Resolved by `resolveProjectsDir` in
+  `lore.go`.
 
 ---
 
@@ -352,15 +372,20 @@ Resolved in Phase 7:
 
 - **Re-run UX.** Lore now returns to the session list when `claude` exits
   and surfaces spawn errors via flash message.
+- **Configurable projects dir.** `--dir` flag and `LORE_PROJECTS_DIR`
+  env var both override the default location.
+
+Resolved in Phase 5:
+
+- **Cost/usage stats data availability.** Token counts are reliably
+  present in `assistant.message.usage` (input, output, cache create,
+  cache read). No message-length inference needed.
+- **FTS5 index location.** Resolved by using `os.UserCacheDir()`, which
+  picks `~/Library/Caches/lore/` on Darwin and `~/.cache/lore/` on
+  Linux automatically.
 
 Still open:
 
 - **Sidechain handling.** Sub-agent transcripts (`isSidechain: true`) — fold
   inline under the parent turn, or separate panel? Leaning inline-collapsed
   (Phase 7).
-- **Cost/usage stats data availability.** Need to sample real JSONL files to
-  confirm what token/cost fields Claude Code actually writes before
-  designing Phase 5c.
-- **FTS5 index location.** `~/.cache/lore/` follows XDG conventions but
-  macOS doesn't have a standard cache dir. Consider `~/Library/Caches/lore/`
-  on Darwin, `~/.cache/lore/` elsewhere.
