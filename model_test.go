@@ -891,27 +891,38 @@ func TestModel_Rerun_PressEnter_CallsRerunFn(t *testing.T) {
 	}
 }
 
-func TestModel_Rerun_DoneMsg_QuitsProgram(t *testing.T) {
+func TestModel_Rerun_DoneMsg_ReturnsToList(t *testing.T) {
 	m := loadedModel("a")
 	m.mode = modeRerun
-	_, cmd := m.Update(rerunDoneMsg{err: nil})
-	if cmd == nil {
-		t.Fatal("rerunDoneMsg should produce a Cmd")
+	next, cmd := m.Update(rerunDoneMsg{err: nil})
+	nm := next.(model)
+	if nm.mode != modeList {
+		t.Errorf("after rerunDoneMsg: mode = %d, want modeList (%d)", nm.mode, modeList)
 	}
-	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Errorf("rerunDoneMsg should produce tea.QuitMsg, got %T", cmd())
+	if cmd == nil {
+		t.Fatal("rerunDoneMsg should produce a reload Cmd")
+	}
+	if _, ok := cmd().(sessionsLoadedMsg); !ok {
+		t.Errorf("rerunDoneMsg reload cmd produced %T, want sessionsLoadedMsg", cmd())
 	}
 }
 
-func TestModel_Rerun_DoneMsg_QuitsEvenOnError(t *testing.T) {
+func TestModel_Rerun_DoneMsg_ErrorSetsFlash(t *testing.T) {
 	m := loadedModel("a")
 	m.mode = modeRerun
-	_, cmd := m.Update(rerunDoneMsg{err: errFake("claude not found")})
-	if cmd == nil {
-		t.Fatal("rerunDoneMsg with err should still produce a Cmd")
+	next, cmd := m.Update(rerunDoneMsg{err: errFake("claude not found")})
+	nm := next.(model)
+	if nm.mode != modeList {
+		t.Errorf("after rerunDoneMsg with err: mode = %d, want modeList (%d)", nm.mode, modeList)
 	}
-	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Errorf("rerunDoneMsg should produce tea.QuitMsg even on err, got %T", cmd())
+	if cmd == nil {
+		t.Fatal("rerunDoneMsg with err should still produce a reload Cmd")
+	}
+	if _, ok := cmd().(sessionsLoadedMsg); !ok {
+		t.Errorf("rerunDoneMsg reload cmd produced %T, want sessionsLoadedMsg", cmd())
+	}
+	if nm.flashMsg == "" {
+		t.Error("after rerunDoneMsg with err: flashMsg should be set")
 	}
 }
 
