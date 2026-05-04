@@ -332,15 +332,20 @@ func renderFooter(m model) string {
 	if m.filterMode == filterModeBranch {
 		return footerStyle.Render(fmt.Sprintf(" branch filter: %s_  [enter] apply  [esc] cancel", m.filterText))
 	}
+	if m.filterMode == filterModeFuzzy {
+		return footerStyle.Render(fmt.Sprintf(" fuzzy filter: %s_  [enter] apply  [esc] cancel", m.filterText))
+	}
 	if m.filterText != "" && m.appliedFilterMode != filterModeNone {
 		switch m.appliedFilterMode {
 		case filterModeProject:
 			return footerStyle.Render(fmt.Sprintf(" filtered by project: %s   j/k · enter open · esc clear   q quit", m.filterText))
 		case filterModeBranch:
 			return footerStyle.Render(fmt.Sprintf(" filtered by branch: %s   j/k · enter open · esc clear   q quit", m.filterText))
+		case filterModeFuzzy:
+			return footerStyle.Render(fmt.Sprintf(" fuzzy filter: %s   j/k · enter open · esc clear   q quit", m.filterText))
 		}
 	}
-	return footerStyle.Render(" j/k move   enter open   / search   p filter project   b filter branch   P project view   g/G top/bottom   q quit")
+	return footerStyle.Render(" j/k move   enter open   / search   p filter project   b filter branch   f fuzzy filter   P project view   g/G top/bottom   q quit")
 }
 
 // padTrunc trims s to max display columns or right-pads it to fit.
@@ -585,6 +590,7 @@ func renderHelpOverlay(m model) string {
  │  Filtering:                                                               │
  │    p             Filter to one project (inline)                          │
  │    b             Filter to one branch (inline)                           │
+ │    f             Fuzzy filter across slug, project, and branch           │
  │    esc           Clear filter                                            │
  │                                                                           │
  │  Other:                                                                   │
