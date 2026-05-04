@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **lore** is a keyboard-driven TUI (Terminal User Interface) for browsing Claude Code session history. It reads session transcripts from `~/.claude/projects/<encoded-cwd>/*.jsonl` and provides rich navigation, filtering, and search across sessions.
 
-Current status: **Phases 1–4 complete.** Implemented:
+Current status: **v0.4.0 — Phases 1–4 complete.** Implemented:
 
 - Session list (3.1) with relative-time bucketing.
 - Inline project (`p`) and branch (`b`) filters with fuzzy ranking.
@@ -17,17 +17,20 @@ Current status: **Phases 1–4 complete.** Implemented:
 - Help overlay (`?`) with mode-specific keybindings.
 - Per-mode viewport scrolling, mode-specific footers, and one-shot flash messages for no-op keys.
 
-Phase 5 (SQLite FTS5 index, list-level fuzzy matching, cost/usage stats) is still future work. The Phase 6 repo split has already happened — this is the standalone `github.com/zpenka/lore` module.
+Next phases: 5a (FTS5 index), 5b (list-level fuzzy match), 5c (cost/usage stats), 7 (quality-of-life). The Phase 6 repo split has already happened — this is the standalone `github.com/zpenka/lore` module.
+
+Known limitation: `rerunDoneMsg` in `model.go` silently discards spawn errors (`_ = msg.err`) and quits lore instead of returning to the session list. Planned fix in Phase 7.
 
 See `DESIGN.md` for the full product vision and phasing roadmap.
 
 ## Build & Run
 
 ```bash
-# Build the lore binary
-go build ./cmd/lore
+# Install from source
+go install github.com/zpenka/lore/cmd/lore@latest
 
-# Run the TUI
+# Or build locally
+go build ./cmd/lore
 ./lore
 
 # Or run directly
@@ -126,7 +129,7 @@ Example first user event:
 - `github.com/charmbracelet/lipgloss`: Styling for headers, dividers, selected rows, etc.
 - `github.com/sahilm/fuzzy`: Fuzzy ranking for the `p` / `b` filters.
 
-Phase 5 will add `modernc.org/sqlite` (pure-Go SQLite for the FTS5 index). Don't add other dependencies without updating `DESIGN.md` first.
+Phase 5a will add `modernc.org/sqlite` (pure-Go SQLite for the FTS5 index). Don't add other dependencies without updating `DESIGN.md` first.
 
 ### Keyboard Navigation
 
@@ -184,8 +187,11 @@ Body math goes through one of `listBodyLines`, `detailBodyLines`, `searchBodyLin
 | 2 — Session detail (3.2) | ✅ Complete (incl. tool expansion, thinking toggle, diff rendering) |
 | 3 — Search v1 linear scan (3.3) | ✅ Complete |
 | 4 — Project view (3.4) and re-run (3.5) | ✅ Complete |
-| 5 — SQLite FTS5, list-level fuzzy match, cost/usage stats | ⏳ Future |
+| 5a — SQLite FTS5 search index | ⏳ Future |
+| 5b — List-level fuzzy matching | ⏳ Future |
+| 5c — Cost/usage stats panel | ⏳ Future |
 | 6 — Repo split into `github.com/zpenka/lore` | ✅ Done (this is that repo) |
+| 7 — Quality-of-life (sidechain, re-run UX, configurable dir) | ⏳ Future |
 
 ## Repo Layout
 

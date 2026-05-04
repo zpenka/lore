@@ -2,10 +2,11 @@
 
 A keyboard-driven TUI for browsing your Claude Code session history.
 
-> **Status:** Phases 1–4 implemented (list, detail, search v1, project view, re-run).
-> The repo split (Phase 6) has happened — this is the standalone
-> `github.com/zpenka/lore` module. Phase 5 (SQLite FTS5, list-level fuzzy match,
-> cost/usage stats) is still future work. See [Phasing](#phasing) for status.
+> **Status:** v0.4.0 — Phases 1–4 implemented (list, detail, search v1, project
+> view, re-run). The repo split (Phase 6) has happened — this is the standalone
+> `github.com/zpenka/lore` module. Next up: Phases 5a–5c (FTS5 index, list-level
+> fuzzy match, cost/usage stats) and Phase 7 (quality-of-life).
+> See [Phasing](#phasing) for status.
 >
 > Name landed on `lore`.
 
@@ -277,13 +278,64 @@ Nothing else. Stay lean.
 | 2 | **Session detail** (3.2) with collapsed tool calls and diff rendering | ✅ Done |
 | 3 | **Search** (3.3) v1 — linear scan | ✅ Done |
 | 4 | **Project view** (3.4) and **re-run** (3.5) | ✅ Done |
-| 5 | SQLite FTS5 index, list-level fuzzy matching, cost/usage stats panel | ⏳ Future |
+| 5a | **SQLite FTS5 search index** — replace linear scan with indexed full-text search | ⏳ Future |
+| 5b | **List-level fuzzy matching** — live-filter as-you-type in the session list | ⏳ Future |
+| 5c | **Cost/usage stats panel** — token usage and cost aggregated by project/branch/day/model | ⏳ Future |
 | 6 | Standalone `github.com/zpenka/lore` repo | ✅ Done |
+| 7 | **Quality-of-life** — sidechain handling, re-run UX, configurable projects dir | ⏳ Future |
 
 Beyond the phased work, several quality-of-life items also landed:
 inline fuzzy ranking for the `p` / `b` filters, a `?` help overlay with
 mode-specific keybindings, per-mode viewport scrolling with edge-snap
 offsets, and one-shot flash messages for no-op keys.
+
+### Phase 5a — SQLite FTS5 search index
+
+Replace the linear-scan `searchSessions()` with an FTS5-backed index.
+
+- Add `modernc.org/sqlite` (pure-Go SQLite driver, already planned).
+- Cache DB at `~/.cache/lore/index.db` (XDG-friendly, outside `~/.claude/`).
+- On launch, diff session file mtimes against the index; re-index only
+  changed files. Full rebuild on first run or schema change.
+- Search query goes through FTS5 `MATCH`; results scored by `rank`.
+- Fallback: if index is missing or corrupt, degrade to linear scan.
+
+### Phase 5b — List-level fuzzy matching
+
+Add a live-filter mode to the session list that fuzzy-matches as the user
+types, across slug, project, and branch fields simultaneously.
+
+- Reuse existing `sahilm/fuzzy` dependency.
+- New key (likely `f`) enters filter-entry mode in the list. Each
+  keystroke re-ranks `visibleSessions` in place.
+- Distinct from `p` / `b` which scope to a single dimension.
+
+### Phase 5c — Cost/usage stats
+
+New `modeStats` mode aggregating token usage and estimated cost.
+
+- Parse `assistant` events for token-count fields (need to verify what
+  Claude Code actually writes to the JSONL — sample real files first).
+- Dimensions: project, branch, day, model.
+- Entry point: new key from list mode (e.g. `$` or `S`).
+- Open question: are token counts reliably present in the JSONL, or do
+  they need to be inferred from message length?
+
+### Phase 7 — Quality-of-life
+
+Smaller improvements identified during the 0.4.0 code review:
+
+- **Sidechain handling.** Sub-agent transcripts (`isSidechain: true`)
+  are currently ignored by `parseTurnsFromJSONL`. Inline-collapse them
+  under the parent turn in detail view.
+- **Re-enter list after re-run.** Instead of quitting lore when `claude`
+  exits (`rerunDoneMsg` handler in `model.go`), return to the session
+  list and surface any spawn errors.
+- **`h` / `←` back-navigation in detail mode.** Vim / less muscle memory
+  expects these to go back; currently only `esc` / `q` work.
+- **Turn position indicator.** Show "turn N of M" in the detail header.
+- **Configurable projects dir.** Support `LORE_PROJECTS_DIR` env var
+  and/or `--dir` flag for non-default `~/.claude/projects/` locations.
 
 ---
 
@@ -295,14 +347,22 @@ Resolved during Phases 1–4:
 - **Write access.** Strictly read-only browser. Re-run (3.5) shells out to
   `claude` via `tea.ExecProcess` and mutates no state under `~/.claude/`.
 - **Cache strategy** (v1). Raw JSONL read on every launch — fast enough in
-  practice. Revisit when Phase 5 lands the SQLite FTS5 index.
+  practice. Revisit when Phase 5a lands the SQLite FTS5 index.
 
-Still open before Phase 5:
+Partially resolved:
+
+- **Re-run UX.** Currently lore exits when `claude` returns (see
+  `rerunDoneMsg` handler in `model.go:196-199`). The spawn error is
+  silently discarded (`_ = msg.err`). Planned fix in Phase 7.
+
+Still open:
 
 - **Sidechain handling.** Sub-agent transcripts (`isSidechain: true`) — fold
-  inline under the parent turn, or separate panel? Probably inline-collapsed.
-- **Cost/usage stats.** What dimensions do we want to slice on (project,
-  branch, day, model)? Surface as a side panel, or a dedicated mode?
-- **Re-run UX.** Currently lore exits when `claude` returns. Should we
-  re-enter the list instead? And should errors from the spawn be surfaced
-  rather than silently swallowed?
+  inline under the parent turn, or separate panel? Leaning inline-collapsed
+  (Phase 7).
+- **Cost/usage stats data availability.** Need to sample real JSONL files to
+  confirm what token/cost fields Claude Code actually writes before
+  designing Phase 5c.
+- **FTS5 index location.** `~/.cache/lore/` follows XDG conventions but
+  macOS doesn't have a standard cache dir. Consider `~/Library/Caches/lore/`
+  on Darwin, `~/.cache/lore/` elsewhere.

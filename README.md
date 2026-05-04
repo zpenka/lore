@@ -5,13 +5,17 @@ A keyboard-driven TUI for browsing Claude Code session history.
 ## Quick start
 
 ```bash
+# Install
+go install github.com/zpenka/lore/cmd/lore@latest
+
+# Or build from source
 go build ./cmd/lore
 ./lore
 ```
 
 The tool reads session transcripts from `~/.claude/projects/` and displays them in a sortable, navigable list.
 
-**Current status**: Phases 1–4 complete — session list with project/branch filters, session detail with tool expansion and diff rendering, linear-scan search, project view, and re-run. Phase 5 (SQLite FTS5, list-level fuzzy match, cost stats) is still future work. See `DESIGN.md` for the full vision and roadmap.
+**Current status (v0.4.0)**: Phases 1–4 complete — session list with project/branch filters, session detail with tool expansion and diff rendering, linear-scan search, project view, and re-run. Next up: FTS5 indexed search (5a), list-level fuzzy matching (5b), cost/usage stats (5c), and quality-of-life improvements (7). See `DESIGN.md` for the full vision and roadmap.
 
 ## Navigation
 
