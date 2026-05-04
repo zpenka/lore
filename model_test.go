@@ -1006,6 +1006,6 @@ func TestModel_Detail_PressH_InFilterEntry_TypesH(t *testing.T) {
 		t.Errorf("after 'h' in filter entry: filterText = %q, want 'h'", m.filterText)
 	}
 	if m.mode != modeList {
-		t.Errorf("after 'h' in filter entry: mode = %d, want modeList (should not change)", m.mode, modeList)
+		t.Errorf("after 'h' in filter entry: mode = %d, want %d (modeList, should not change)", m.mode, modeList)
 	}
 }
