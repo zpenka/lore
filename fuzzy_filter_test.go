@@ -258,8 +258,8 @@ func TestModel_FuzzyFilter_HelpOverlayListMode(t *testing.T) {
 	m.mode = modeList
 
 	helpText := renderHelpOverlay(m)
-	// Help overlay for list mode should explain the 'f' fuzzy filter key
-	if !strings.Contains(helpText, "fuzzy") {
+	// Help overlay for list mode should explain the 'f' fuzzy filter key (case-insensitive)
+	if !strings.Contains(strings.ToLower(helpText), "fuzzy") {
 		t.Errorf("help overlay for list mode should document fuzzy filter 'f' key (mention 'fuzzy'), got: %q", helpText)
 	}
 }

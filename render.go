@@ -345,7 +345,7 @@ func renderFooter(m model) string {
 			return footerStyle.Render(fmt.Sprintf(" fuzzy filter: %s   j/k · enter open · esc clear   q quit", m.filterText))
 		}
 	}
-	return footerStyle.Render(" j/k move   enter open   / search   p project   b branch   f fuzzy   P project view   g/G top/bottom   q quit")
+	return footerStyle.Render(" j/k move   enter open   / search   p filter project   b filter branch   f fuzzy filter   P project view   g/G top/bottom   q quit")
 }
 
 // padTrunc trims s to max display columns or right-pads it to fit.
