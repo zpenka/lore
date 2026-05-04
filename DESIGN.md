@@ -2,10 +2,10 @@
 
 A keyboard-driven TUI for browsing your Claude Code session history.
 
-> **Status:** v0.4.0 — Phases 1–4 implemented (list, detail, search v1, project
-> view, re-run). The repo split (Phase 6) has happened — this is the standalone
-> `github.com/zpenka/lore` module. Next up: Phases 5a–5c (FTS5 index, list-level
-> fuzzy match, cost/usage stats) and Phase 7 (quality-of-life).
+> **Status:** v0.5.0 — Phases 1–4, 5b, and partial Phase 7 implemented.
+> The repo split (Phase 6) has happened — this is the standalone
+> `github.com/zpenka/lore` module. Next up: Phase 5a (FTS5 index),
+> 5c (cost/usage stats), and remaining Phase 7 items.
 > See [Phasing](#phasing) for status.
 >
 > Name landed on `lore`.
@@ -279,10 +279,10 @@ Nothing else. Stay lean.
 | 3 | **Search** (3.3) v1 — linear scan | ✅ Done |
 | 4 | **Project view** (3.4) and **re-run** (3.5) | ✅ Done |
 | 5a | **SQLite FTS5 search index** — replace linear scan with indexed full-text search | ⏳ Future |
-| 5b | **List-level fuzzy matching** — live-filter as-you-type in the session list | ⏳ Future |
+| 5b | **List-level fuzzy matching** — `f` key, matches across slug+project+branch | ✅ Done |
 | 5c | **Cost/usage stats panel** — token usage and cost aggregated by project/branch/day/model | ⏳ Future |
 | 6 | Standalone `github.com/zpenka/lore` repo | ✅ Done |
-| 7 | **Quality-of-life** — sidechain handling, re-run UX, configurable projects dir | ⏳ Future |
+| 7 | **Quality-of-life** — sidechain handling, re-run UX, back-nav, turn indicator, configurable dir | 🔶 Partial |
 
 Beyond the phased work, several quality-of-life items also landed:
 inline fuzzy ranking for the `p` / `b` filters, a `?` help overlay with
@@ -328,12 +328,11 @@ Smaller improvements identified during the 0.4.0 code review:
 - **Sidechain handling.** Sub-agent transcripts (`isSidechain: true`)
   are currently ignored by `parseTurnsFromJSONL`. Inline-collapse them
   under the parent turn in detail view.
-- **Re-enter list after re-run.** Instead of quitting lore when `claude`
-  exits (`rerunDoneMsg` handler in `model.go`), return to the session
-  list and surface any spawn errors.
-- **`h` / `←` back-navigation in detail mode.** Vim / less muscle memory
-  expects these to go back; currently only `esc` / `q` work.
-- **Turn position indicator.** Show "turn N of M" in the detail header.
+- ~~**Re-enter list after re-run.**~~ ✅ Done — lore now returns to the
+  session list when `claude` exits and surfaces spawn errors via flash message.
+- ~~**`h` / `←` back-navigation in detail mode.**~~ ✅ Done — both keys
+  now go back from detail to list.
+- ~~**Turn position indicator.**~~ ✅ Done — header shows "turn N/M".
 - **Configurable projects dir.** Support `LORE_PROJECTS_DIR` env var
   and/or `--dir` flag for non-default `~/.claude/projects/` locations.
 
@@ -349,11 +348,10 @@ Resolved during Phases 1–4:
 - **Cache strategy** (v1). Raw JSONL read on every launch — fast enough in
   practice. Revisit when Phase 5a lands the SQLite FTS5 index.
 
-Partially resolved:
+Resolved in Phase 7:
 
-- **Re-run UX.** Currently lore exits when `claude` returns (see
-  `rerunDoneMsg` handler in `model.go:196-199`). The spawn error is
-  silently discarded (`_ = msg.err`). Planned fix in Phase 7.
+- **Re-run UX.** Lore now returns to the session list when `claude` exits
+  and surfaces spawn errors via flash message.
 
 Still open:
 

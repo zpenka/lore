@@ -6,20 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **lore** is a keyboard-driven TUI (Terminal User Interface) for browsing Claude Code session history. It reads session transcripts from `~/.claude/projects/<encoded-cwd>/*.jsonl` and provides rich navigation, filtering, and search across sessions.
 
-Current status: **v0.4.0 — Phases 1–4 complete.** Implemented:
+Current status: **v0.5.0 — Phases 1–4, 5b, and partial Phase 7 complete.** Implemented:
 
 - Session list (3.1) with relative-time bucketing.
-- Inline project (`p`) and branch (`b`) filters with fuzzy ranking.
-- Session detail (3.2) with collapsible tool turns, thinking toggle, copy-prompt, re-run, and diff rendering for `Edit` / `Write` tool calls.
+- Inline project (`p`), branch (`b`), and fuzzy (`f`) filters with fuzzy ranking.
+- Session detail (3.2) with collapsible tool turns, thinking toggle, copy-prompt, re-run, diff rendering for `Edit` / `Write` tool calls, and turn position indicator (`turn N/M`).
 - Linear-scan full-text search (3.3 v1).
 - Project view (3.4) grouped by branch.
-- Re-run (3.5) via `tea.ExecProcess` so the spawned `claude` owns the TTY cleanly.
+- Re-run (3.5) via `tea.ExecProcess` so the spawned `claude` owns the TTY cleanly. Returns to the session list on exit and surfaces spawn errors.
 - Help overlay (`?`) with mode-specific keybindings.
 - Per-mode viewport scrolling, mode-specific footers, and one-shot flash messages for no-op keys.
 
-Next phases: 5a (FTS5 index), 5b (list-level fuzzy match), 5c (cost/usage stats), 7 (quality-of-life). The Phase 6 repo split has already happened — this is the standalone `github.com/zpenka/lore` module.
-
-Known limitation: `rerunDoneMsg` in `model.go` silently discards spawn errors (`_ = msg.err`) and quits lore instead of returning to the session list. Planned fix in Phase 7.
+Next phases: 5a (FTS5 index), 5c (cost/usage stats), and remaining Phase 7 items (sidechain handling, configurable projects dir). The Phase 6 repo split has already happened — this is the standalone `github.com/zpenka/lore` module.
 
 See `DESIGN.md` for the full product vision and phasing roadmap.
 
@@ -127,7 +125,7 @@ Example first user event:
 
 - `github.com/charmbracelet/bubbletea`: TUI framework.
 - `github.com/charmbracelet/lipgloss`: Styling for headers, dividers, selected rows, etc.
-- `github.com/sahilm/fuzzy`: Fuzzy ranking for the `p` / `b` filters.
+- `github.com/sahilm/fuzzy`: Fuzzy ranking for the `p` / `b` / `f` filters.
 
 Phase 5a will add `modernc.org/sqlite` (pure-Go SQLite for the FTS5 index). Don't add other dependencies without updating `DESIGN.md` first.
 
@@ -141,6 +139,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `enter`, `l`, `→`: Open the highlighted session in detail view.
 - `p`: Inline project filter (type query, `enter` to apply, `esc` to cancel).
 - `b`: Inline branch filter.
+- `f`: Fuzzy filter across slug, project, and branch simultaneously.
 - `P`: Open the project view scoped to the selected session's CWD.
 - `/`: Enter full-text search.
 - `esc`: Clear an applied filter.
@@ -153,7 +152,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `t`: Toggle thinking blocks (hidden by default).
 - `y`: Copy the user prompt at-or-before the cursor to the clipboard.
 - `r`: Re-run with the current user prompt (enters re-run mode).
-- `esc` / `q`: Back to list.
+- `esc` / `q` / `h` / `←`: Back to list.
 
 **Search mode** (`modeSearch`):
 - Entry: type to build query, `enter` to run, `esc` to cancel.
@@ -161,7 +160,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 
 **Project mode** (`modeProject`): `j` / `k`, `g` / `G`, `enter`, `esc` / `q`. Sessions are grouped by branch with the latest branch first.
 
-**Re-run mode** (`modeRerun`): `enter` to spawn `claude` with the chosen prompt and CWD; `esc` / `q` to return to detail.
+**Re-run mode** (`modeRerun`): `enter` to spawn `claude` with the chosen prompt and CWD (lore returns to the session list when `claude` exits); `esc` / `q` to cancel and return to detail.
 
 ### Testing Strategy
 
@@ -188,10 +187,10 @@ Body math goes through one of `listBodyLines`, `detailBodyLines`, `searchBodyLin
 | 3 — Search v1 linear scan (3.3) | ✅ Complete |
 | 4 — Project view (3.4) and re-run (3.5) | ✅ Complete |
 | 5a — SQLite FTS5 search index | ⏳ Future |
-| 5b — List-level fuzzy matching | ⏳ Future |
-| 5c — Cost/usage stats panel | ⏳ Future |
+| 5b — List-level fuzzy matching (`f` key) | ✅ Complete |
+| 5c — Cost/usage stats panel | ⏳ Future (research done — token data is in JSONL) |
 | 6 — Repo split into `github.com/zpenka/lore` | ✅ Done (this is that repo) |
-| 7 — Quality-of-life (sidechain, re-run UX, configurable dir) | ⏳ Future |
+| 7 — Quality-of-life | 🔶 Partial (`h`/`←` back-nav, re-run return-to-list, turn indicator done; sidechain + configurable dir remaining) |
 
 ## Repo Layout
 
