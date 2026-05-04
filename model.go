@@ -71,6 +71,11 @@ type model struct {
 	rerunCWD    string                           // The session's CWD for re-run
 	rerunFn     func(prompt, cwd string) tea.Cmd // Dependency-injected re-run hook; returns a tea.Cmd so the exec can be routed through tea.ExecProcess (or a fake in tests).
 
+	// Stats view state
+	statsData   []statsRow // per-session stats rows (computed on enter)
+	statsCursor int        // cursor position in stats view
+	statsOffset int        // viewport scroll offset for stats view
+
 	// Viewport scroll offsets (one per mode). Updated in the key handlers
 	// when the cursor moves; used by the renderers to slice the body.
 	listOffset    int
@@ -146,6 +151,16 @@ func (m model) clampProjectOffsetNow() model {
 	}
 	body, cursorLine := projectBodyLines(m, time.Now())
 	m.projectOffset = clampOffset(m.projectOffset, cursorLine, len(body), h)
+	return m
+}
+
+func (m model) clampStatsOffsetNow() model {
+	h := m.bodyHeight() - 1 // account for the column header line in stats view
+	if h <= 0 {
+		return m
+	}
+	body, cursorLine := statsBodyLines(m)
+	m.statsOffset = clampOffset(m.statsOffset, cursorLine, len(body), h)
 	return m
 }
 
@@ -241,6 +256,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleProjectKey(msg)
 	case modeRerun:
 		return m.handleRerunKey(msg)
+	case modeStats:
+		return m.handleStatsKey(msg)
 	}
 
 	return m, nil
@@ -311,6 +328,13 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.searchQuery = ""
 			m.searchResults = nil
 			m.searchCursor = 0
+		}
+	case "S":
+		if !m.loading {
+			m.statsData = computeStatsRows(m.sessions)
+			m.statsCursor = 0
+			m.statsOffset = 0
+			m.mode = modeStats
 		}
 	case "enter", "l", "right":
 		// Open session detail
@@ -563,6 +587,52 @@ func (m model) handleRerunKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+// handleStatsKey handles keys in stats mode.
+func (m model) handleStatsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "esc":
+		m.mode = modeList
+		return m, nil
+	case "j", "down":
+		if m.statsCursor < len(m.statsData)-1 {
+			m.statsCursor++
+		}
+		m = m.clampStatsOffsetNow()
+	case "k", "up":
+		if m.statsCursor > 0 {
+			m.statsCursor--
+		}
+		m = m.clampStatsOffsetNow()
+	case "g":
+		m.statsCursor = 0
+		m = m.clampStatsOffsetNow()
+	case "G":
+		if len(m.statsData) > 0 {
+			m.statsCursor = len(m.statsData) - 1
+		}
+		m = m.clampStatsOffsetNow()
+	}
+	return m, nil
+}
+
+// computeStatsRows iterates sessions, opens each file, and parses token usage.
+// Sessions whose files cannot be opened produce a zero-stats row (displayed as dashes).
+func computeStatsRows(sessions []Session) []statsRow {
+	rows := make([]statsRow, 0, len(sessions))
+	for _, s := range sessions {
+		row := statsRow{Session: s}
+		if f, err := os.Open(s.Path); err == nil {
+			if stats, err := parseSessionStats(f); err == nil {
+				stats.EstimatedCostUSD = estimateCost(stats)
+				row.Stats = stats
+			}
+			f.Close()
+		}
+		rows = append(rows, row)
+	}
+	return rows
 }
 
 func (m model) handleFilterEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

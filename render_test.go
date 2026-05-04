@@ -742,3 +742,69 @@ func TestRerunView_Footer_ShowsRunAndCancel(t *testing.T) {
 		t.Errorf("footer should show 'esc cancel': %s", out)
 	}
 }
+
+// ----- stats mode view tests -----
+
+func TestStatsView_Header(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "lore", Branch: "main", Slug: "s1", Timestamp: time.Now()},
+		Session{Project: "lore", Branch: "feat", Slug: "s2", Timestamp: time.Now()},
+	)
+	m.mode = modeStats
+	m.statsData = []statsRow{
+		{Session: m.sessions[0], Stats: SessionStats{Model: "claude-opus-4-6", InputTokens: 1000, OutputTokens: 500}},
+		{Session: m.sessions[1], Stats: SessionStats{Model: "claude-sonnet-4-6", InputTokens: 2000, OutputTokens: 300}},
+	}
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "usage stats") {
+		t.Errorf("stats header missing 'usage stats':\n%s", out)
+	}
+	if !strings.Contains(out, "2") {
+		t.Errorf("stats header missing session count:\n%s", out)
+	}
+}
+
+func TestStatsView_ShowsSessionData(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "lore", Branch: "main", Slug: "s1", Timestamp: time.Now()},
+	)
+	m.mode = modeStats
+	m.statsData = []statsRow{
+		{Session: m.sessions[0], Stats: SessionStats{Model: "claude-opus-4-6", InputTokens: 5000, OutputTokens: 2000}},
+	}
+	m.statsCursor = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "lore") {
+		t.Errorf("stats view missing project name:\n%s", out)
+	}
+	if !strings.Contains(out, "main") {
+		t.Errorf("stats view missing branch:\n%s", out)
+	}
+	if !strings.Contains(out, "opus") {
+		t.Errorf("stats view missing model name:\n%s", out)
+	}
+}
+
+func TestStatsView_Footer(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "lore", Branch: "main", Slug: "s1", Timestamp: time.Now()},
+	)
+	m.mode = modeStats
+	m.statsData = []statsRow{}
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "j/k") {
+		t.Errorf("stats footer missing 'j/k':\n%s", out)
+	}
+	if !strings.Contains(out, "esc") {
+		t.Errorf("stats footer missing 'esc':\n%s", out)
+	}
+}

@@ -41,6 +41,8 @@ func (m model) View() string {
 		return renderProjectView(m, time.Now())
 	case modeRerun:
 		return renderRerunView(m)
+	case modeStats:
+		return renderStatsView(m)
 	}
 	return ""
 }
@@ -351,7 +353,7 @@ func renderFooter(m model) string {
 			return footerStyle.Render(fmt.Sprintf(" fuzzy filter: %s   j/k · enter open · esc clear   q quit", m.filterText))
 		}
 	}
-	return footerStyle.Render(" j/k move   enter open   / search   p filter project   b filter branch   f fuzzy filter   P project view   g/G top/bottom   q quit")
+	return footerStyle.Render(" j/k move   enter open   / search   p filter project   b filter branch   f fuzzy   P project view   S usage stats   g/G top/bottom   q quit")
 }
 
 // padTrunc trims s to max display columns or right-pads it to fit.
@@ -601,6 +603,7 @@ func renderHelpOverlay(m model) string {
  │                                                                           │
  │  Other:                                                                   │
  │    P             Open project view for current session's CWD             │
+ │    S             Open usage stats panel (token counts + estimated cost)  │
  │    /             Enter full-text search                                  │
  │    ?             Show this help overlay                                  │
  │    q             Quit                                                    │
@@ -682,6 +685,25 @@ func renderHelpOverlay(m model) string {
  └────────────────────────────────────────────────────────────────────────┘
 `
 
+	case modeStats:
+		helpText = `
+ ┌─ Usage Stats Mode Help ───────────────────────────────────────────────────┐
+ │                                                                            │
+ │  Navigation:                                                               │
+ │    j/k, ↑/↓     Move cursor through sessions                              │
+ │    g/G          Jump to top/bottom                                        │
+ │                                                                            │
+ │  Columns: project · branch · model · input tokens · output tokens · cost  │
+ │  Token counts use k (thousands) or M (millions) suffix.                   │
+ │  Cost is an estimate based on published per-token pricing.                 │
+ │                                                                            │
+ │  Return to List:                                                           │
+ │    esc, q       Back to session list                                      │
+ │    ?            Show this help overlay                                    │
+ │                                                                            │
+ └────────────────────────────────────────────────────────────────────────┘
+`
+
 	default:
 		helpText = `
  ┌─ Help ────────────────────────────────────────────────────────────────────┐
@@ -694,4 +716,95 @@ func renderHelpOverlay(m model) string {
 	}
 
 	return helpText
+}
+
+// ----- stats mode -----
+
+// statsBodyLines builds the rendered rows for stats mode.
+// Each session is one line showing project, branch, model, token counts, and cost.
+func statsBodyLines(m model) (lines []string, cursorLine int) {
+	if len(m.statsData) == 0 {
+		return []string{" (no sessions)"}, 0
+	}
+	for i, row := range m.statsData {
+		isSelected := (i == m.statsCursor)
+		if isSelected {
+			cursorLine = len(lines)
+		}
+		cursor := "  "
+		if isSelected {
+			cursor = " ►"
+		}
+		s := row.Session
+		st := row.Stats
+
+		model := padTrunc(st.Model, 20)
+		inTok := formatTokenCount(st.InputTokens)
+		outTok := formatTokenCount(st.OutputTokens)
+		tokStr := fmt.Sprintf("%s / %s", inTok, outTok)
+
+		var costStr string
+		if st.EstimatedCostUSD == 0 && st.Model == "" {
+			costStr = "   —"
+		} else {
+			costStr = fmt.Sprintf("$%.2f", st.EstimatedCostUSD)
+		}
+
+		line := fmt.Sprintf("%s %-14s  %-22s  %-20s  %-14s  %s",
+			cursor,
+			padTrunc(s.Project, 14),
+			padTrunc(s.Branch, 22),
+			model,
+			tokStr,
+			costStr,
+		)
+		if isSelected {
+			lines = append(lines, selectedStyle.Render(line))
+		} else {
+			lines = append(lines, line)
+		}
+	}
+	return
+}
+
+// renderStatsView renders the usage stats panel.
+func renderStatsView(m model) string {
+	var b strings.Builder
+
+	n := len(m.statsData)
+	headerLine := fmt.Sprintf(" lore · usage stats · %d session%s", n, plural(n))
+	b.WriteString(headerStyle.Render(headerLine))
+	b.WriteByte('\n')
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+
+	// Column header
+	colHeader := "    project         branch                  model                 in / out        cost"
+	b.WriteString(footerStyle.Render(colHeader))
+	b.WriteByte('\n')
+
+	body, cursorLine := statsBodyLines(m)
+	height := m.bodyHeight() - 1 // subtract the column header line
+	if height <= 0 {
+		height = 1
+	}
+	offset := clampOffset(m.statsOffset, cursorLine, len(body), height)
+	for _, line := range renderBody(body, offset, height) {
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+	b.WriteString(renderStatsFooter(m))
+	b.WriteByte('\n')
+	return b.String()
+}
+
+// renderStatsFooter renders the footer for stats mode.
+func renderStatsFooter(m model) string {
+	if m.flashMsg != "" {
+		return flashStyle.Render(" " + m.flashMsg)
+	}
+	return footerStyle.Render(" j/k move   g/G top/bottom   esc/q back to list")
 }
