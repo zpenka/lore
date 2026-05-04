@@ -998,6 +998,109 @@ func TestModel_Detail_PressLeft_ReturnsToList(t *testing.T) {
 	}
 }
 
+// ----- Stats mode tests -----
+
+func TestModel_PressSCapital_EntersStatsMode(t *testing.T) {
+	m := loadedModel("a", "b")
+	next, _ := m.Update(keyMsg("S"))
+	nm := next.(model)
+	if nm.mode != modeStats {
+		t.Errorf("after 'S': mode = %d, want %d (modeStats)", nm.mode, modeStats)
+	}
+}
+
+func TestModel_Stats_PressEsc_ReturnsToList(t *testing.T) {
+	m := loadedModel("a", "b")
+	m.mode = modeStats
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	nm := next.(model)
+	if nm.mode != modeList {
+		t.Errorf("after esc in stats: mode = %d, want %d (modeList)", nm.mode, modeList)
+	}
+}
+
+func TestModel_Stats_PressQ_ReturnsToList(t *testing.T) {
+	m := loadedModel("a", "b")
+	m.mode = modeStats
+	next, _ := m.Update(keyMsg("q"))
+	nm := next.(model)
+	if nm.mode != modeList {
+		t.Errorf("after 'q' in stats: mode = %d, want %d (modeList)", nm.mode, modeList)
+	}
+}
+
+func TestModel_Stats_NavigationJK(t *testing.T) {
+	m := loadedModel("a", "b", "c")
+	m.mode = modeStats
+	m.statsData = []statsRow{
+		{Session: m.sessions[0]},
+		{Session: m.sessions[1]},
+		{Session: m.sessions[2]},
+	}
+	m.statsCursor = 0
+
+	next, _ := m.Update(keyMsg("j"))
+	nm := next.(model)
+	if nm.statsCursor != 1 {
+		t.Errorf("after j: statsCursor = %d, want 1", nm.statsCursor)
+	}
+
+	next, _ = nm.Update(keyMsg("k"))
+	nm = next.(model)
+	if nm.statsCursor != 0 {
+		t.Errorf("after k: statsCursor = %d, want 0", nm.statsCursor)
+	}
+}
+
+func TestModel_Stats_NavigationGG(t *testing.T) {
+	m := loadedModel("a", "b", "c")
+	m.mode = modeStats
+	m.statsData = []statsRow{
+		{Session: m.sessions[0]},
+		{Session: m.sessions[1]},
+		{Session: m.sessions[2]},
+	}
+	m.statsCursor = 0
+
+	next, _ := m.Update(keyMsg("G"))
+	nm := next.(model)
+	if nm.statsCursor != 2 {
+		t.Errorf("after G: statsCursor = %d, want 2", nm.statsCursor)
+	}
+
+	next, _ = nm.Update(keyMsg("g"))
+	nm = next.(model)
+	if nm.statsCursor != 0 {
+		t.Errorf("after g: statsCursor = %d, want 0", nm.statsCursor)
+	}
+}
+
+func TestModel_Stats_JBounded(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeStats
+	m.statsData = []statsRow{{Session: m.sessions[0]}}
+	m.statsCursor = 0
+
+	next, _ := m.Update(keyMsg("j"))
+	nm := next.(model)
+	if nm.statsCursor != 0 {
+		t.Errorf("j at bottom: statsCursor = %d, want 0 (bounded)", nm.statsCursor)
+	}
+}
+
+func TestModel_Stats_KBounded(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeStats
+	m.statsData = []statsRow{{Session: m.sessions[0]}}
+	m.statsCursor = 0
+
+	next, _ := m.Update(keyMsg("k"))
+	nm := next.(model)
+	if nm.statsCursor != 0 {
+		t.Errorf("k at top: statsCursor = %d, want 0 (bounded)", nm.statsCursor)
+	}
+}
+
 func TestModel_Detail_PressH_InFilterEntry_TypesH(t *testing.T) {
 	// 'h' while in filter entry (list mode, filterMode active) should append
 	// to filterText, not go back.

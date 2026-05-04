@@ -27,8 +27,10 @@ func runWith(args []string, out io.Writer) error {
 	fs := flag.NewFlagSet("lore", flag.ContinueOnError)
 	fs.SetOutput(out)
 	var showVersion bool
+	var dirFlag string
 	fs.BoolVar(&showVersion, "v", false, "print version and exit")
 	fs.BoolVar(&showVersion, "version", false, "print version and exit")
+	fs.StringVar(&dirFlag, "dir", "", "path to Claude projects directory (overrides LORE_PROJECTS_DIR and the default)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -37,7 +39,7 @@ func runWith(args []string, out io.Writer) error {
 		return nil
 	}
 
-	dir, err := defaultProjectsDir()
+	dir, err := resolveProjectsDir(dirFlag)
 	if err != nil {
 		return err
 	}
@@ -45,6 +47,20 @@ func runWith(args []string, out io.Writer) error {
 	p := tea.NewProgram(newModel(dir), tea.WithAltScreen())
 	_, err = p.Run()
 	return err
+}
+
+// resolveProjectsDir picks the projects directory with the following precedence:
+//  1. dirFlag (from --dir flag) if non-empty
+//  2. LORE_PROJECTS_DIR environment variable if set
+//  3. defaultProjectsDir() (~/.claude/projects)
+func resolveProjectsDir(dirFlag string) (string, error) {
+	if dirFlag != "" {
+		return dirFlag, nil
+	}
+	if envDir := os.Getenv("LORE_PROJECTS_DIR"); envDir != "" {
+		return envDir, nil
+	}
+	return defaultProjectsDir()
 }
 
 func defaultProjectsDir() (string, error) {
