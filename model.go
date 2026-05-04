@@ -13,6 +13,7 @@ const (
 	filterModeNone = iota
 	filterModeProject
 	filterModeBranch
+	filterModeFuzzy
 )
 
 // sessionsLoadedMsg is dispatched when scanSessions finishes.
@@ -295,6 +296,10 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "b":
 		if !m.loading {
 			m.filterMode = filterModeBranch
+		}
+	case "f":
+		if !m.loading {
+			m.filterMode = filterModeFuzzy
 		}
 	case "/":
 		if !m.loading {
@@ -635,6 +640,26 @@ func (m *model) applyFilter() {
 		m.visibleSessions = nil
 		for _, s := range m.sessions {
 			if branchMap[s.Branch] {
+				m.visibleSessions = append(m.visibleSessions, s)
+			}
+		}
+	case filterModeFuzzy:
+		// Build candidates by concatenating slug + project + branch per session.
+		// fuzzy.Find matches against each candidate string; sessions whose
+		// combined field string matches are included.
+		candidates := make([]string, len(m.sessions))
+		for i, s := range m.sessions {
+			candidates[i] = s.Slug + " " + s.Project + " " + s.Branch
+		}
+		matched := fuzzyFilterCandidates(filterText, candidates)
+		// Build a set of matched composite strings for O(1) lookup.
+		matchSet := make(map[string]bool, len(matched))
+		for _, c := range matched {
+			matchSet[c] = true
+		}
+		m.visibleSessions = nil
+		for i, s := range m.sessions {
+			if matchSet[candidates[i]] {
 				m.visibleSessions = append(m.visibleSessions, s)
 			}
 		}
