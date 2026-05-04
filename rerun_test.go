@@ -1,7 +1,11 @@
 package lore
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // TestRerunClaude_ReturnsCmd verifies rerunClaude always returns a non-nil
@@ -24,5 +28,85 @@ func TestRerunClaude_ReturnsCmd(t *testing.T) {
 	msg := cmd()
 	if msg == nil {
 		t.Fatal("rerunClaude's Cmd returned nil msg")
+	}
+}
+
+// fakeRerunFn is an injectable rerunFn that immediately yields a rerunDoneMsg
+// with the given error, without spawning any real process.
+func fakeRerunFn(rerunErr error) func(prompt, cwd string) tea.Cmd {
+	return func(prompt, cwd string) tea.Cmd {
+		return func() tea.Msg { return rerunDoneMsg{err: rerunErr} }
+	}
+}
+
+// rerunModel builds a model that is already in modeRerun with a fake rerunFn.
+func rerunModel(rerunErr error) model {
+	m := loadedModel("a", "b")
+	m.mode = modeRerun
+	m.rerunPrompt = "do the thing"
+	m.rerunCWD = "/some/cwd"
+	m.rerunFn = fakeRerunFn(rerunErr)
+	return m
+}
+
+// TestRerunDoneMsg_Success_ReturnsToList checks that a successful re-run
+// (err == nil) moves the model back to modeList and returns a non-nil cmd
+// (the loadSessionsCmd reload).
+func TestRerunDoneMsg_Success_ReturnsToList(t *testing.T) {
+	m := rerunModel(nil)
+
+	// Simulate pressing enter to trigger the re-run, then immediately
+	// dispatch the rerunDoneMsg that the fake rerunFn yields.
+	next, execCmd := m.Update(keyMsg("enter"))
+	m = next.(model)
+	if execCmd == nil {
+		t.Fatal("enter in rerun mode returned nil cmd")
+	}
+	doneMsg := execCmd()
+
+	next, reloadCmd := m.Update(doneMsg)
+	m = next.(model)
+
+	if m.mode != modeList {
+		t.Errorf("after successful rerunDoneMsg: mode = %d, want modeList (%d)", m.mode, modeList)
+	}
+	if reloadCmd == nil {
+		t.Error("after successful rerunDoneMsg: expected non-nil reload cmd, got nil")
+	}
+	// Verify the reload cmd produces a sessionsLoadedMsg (i.e. it is a loadSessionsCmd).
+	msg := reloadCmd()
+	if _, ok := msg.(sessionsLoadedMsg); !ok {
+		t.Errorf("reload cmd produced %T, want sessionsLoadedMsg", msg)
+	}
+}
+
+// TestRerunDoneMsg_Error_ReturnsToListWithFlash checks that a failed re-run
+// (err != nil) moves the model back to modeList and sets a flashMsg containing
+// the error text.
+func TestRerunDoneMsg_Error_ReturnsToListWithFlash(t *testing.T) {
+	rerunErr := fmt.Errorf("claude: exit status 1")
+	m := rerunModel(rerunErr)
+
+	next, execCmd := m.Update(keyMsg("enter"))
+	m = next.(model)
+	if execCmd == nil {
+		t.Fatal("enter in rerun mode returned nil cmd")
+	}
+	doneMsg := execCmd()
+
+	next, reloadCmd := m.Update(doneMsg)
+	m = next.(model)
+
+	if m.mode != modeList {
+		t.Errorf("after failed rerunDoneMsg: mode = %d, want modeList (%d)", m.mode, modeList)
+	}
+	if reloadCmd == nil {
+		t.Error("after failed rerunDoneMsg: expected non-nil reload cmd, got nil")
+	}
+	if !strings.Contains(m.flashMsg, "re-run failed") {
+		t.Errorf("flashMsg = %q, want it to contain 're-run failed'", m.flashMsg)
+	}
+	if !strings.Contains(m.flashMsg, rerunErr.Error()) {
+		t.Errorf("flashMsg = %q, want it to contain error text %q", m.flashMsg, rerunErr.Error())
 	}
 }
