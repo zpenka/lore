@@ -52,7 +52,6 @@ type model struct {
 	detailErr     error              // Error loading/parsing detail session
 	detailLoading bool               // True while loading session content
 	expandedTurns map[int]bool       // Tracks which turns are expanded (index -> expanded)
-	showThinking  bool               // Whether thinking turns are visible
 	justCopied    bool               // Brief flag set after successful copy
 	clipboardFn   func(string) error // Dependency-injected clipboard function
 
@@ -105,7 +104,6 @@ func newModel(projectsDir string) model {
 		projectsDir:   projectsDir,
 		loading:       true,
 		expandedTurns: make(map[int]bool),
-		showThinking:  false,
 		justCopied:    false,
 		clipboardFn:   copyToClipboard, // Default to real implementation
 		rerunFn:       rerunClaude,     // Default to real implementation
@@ -367,7 +365,6 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.detailOffset = 0
 		m.expandedTurns = make(map[int]bool)
 		m.sidechainTurns = nil
-		m.showThinking = false
 		m.justCopied = false
 		return m, nil
 	case "j", "down":
@@ -414,13 +411,6 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				m.flashMsg = "space: cursor is not on a tool turn"
 			}
-		}
-		m.justCopied = false
-	case "t":
-		m.showThinking = !m.showThinking
-		visible := m.visibleTurns()
-		if m.cursorDetail >= len(visible) && len(visible) > 0 {
-			m.cursorDetail = len(visible) - 1
 		}
 		m.justCopied = false
 	case "y":
@@ -771,12 +761,9 @@ func (m *model) applyFilter() {
 	}
 }
 
-// visibleTurns returns the list of turns filtered by visibility (e.g., thinking blocks).
+// visibleTurns returns the list of turns filtered by visibility.
+// Thinking blocks are always filtered out (session files redact their content).
 func (m model) visibleTurns() []turn {
-	if m.showThinking {
-		return m.turns
-	}
-	// Filter out thinking turns
 	var visible []turn
 	for _, t := range m.turns {
 		if t.kind != "thinking" {
@@ -790,7 +777,7 @@ func (m model) visibleTurns() []turn {
 func (m model) visibleIndexToFullIndex(visibleIdx int) int {
 	count := 0
 	for i, t := range m.turns {
-		if m.showThinking || t.kind != "thinking" {
+		if t.kind != "thinking" {
 			if count == visibleIdx {
 				return i
 			}

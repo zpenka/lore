@@ -334,24 +334,6 @@ func TestDetailView_RenderExpandedTool(t *testing.T) {
 	}
 }
 
-func TestDetailView_RenderThinkingMarker(t *testing.T) {
-	m := newModel("/d")
-	m.mode = modeDetail
-	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
-	m.turns = []turn{
-		{kind: "thinking", body: "internal thought"},
-	}
-	m.showThinking = true
-	m.cursorDetail = 0
-	m.width = 100
-	m.height = 40
-
-	out := m.View()
-	if !strings.Contains(out, "〰") {
-		t.Errorf("thinking marker not rendered: %s", out)
-	}
-}
-
 func TestDetailView_DetailFooter_NoThinkingToggle(t *testing.T) {
 	m := newModel("/d")
 	m.mode = modeDetail
@@ -378,7 +360,6 @@ func TestDetailView_DetailFooter_WithCopied(t *testing.T) {
 	m.mode = modeDetail
 	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
 	m.turns = []turn{{kind: "user", body: "msg"}}
-	m.showThinking = false
 	m.justCopied = true
 	m.width = 100
 	m.height = 40
