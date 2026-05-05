@@ -148,18 +148,28 @@ func detailBodyLines(m model) (lines []string, cursorLine int) {
 				lines = append(lines, ln)
 			}
 		}
+		if expanded {
+			if scTurns, ok := m.sidechainTurns[fullIdx]; ok {
+				for _, ln := range renderSidechainTurns(scTurns, m.width) {
+					lines = append(lines, ln)
+				}
+			}
+		}
 	}
 	return
 }
 
-// wrapTurnLines flattens one turn into a slice of visual rows.
 func wrapTurnLines(t turn, expanded bool, width int) []string {
 	first, cont := turnPrefixes(t.kind)
 	avail := width - utf8.RuneCountInString(first)
 	if avail < 10 {
 		avail = 10
 	}
-	wrapped := wrapText(t.body, avail)
+	body := t.body
+	if t.sidechainPath != "" {
+		body = "⧑ " + body
+	}
+	wrapped := wrapText(body, avail)
 	out := make([]string, 0, len(wrapped))
 	for i, line := range wrapped {
 		if i == 0 {
@@ -204,6 +214,33 @@ func turnPrefixes(kind string) (first, cont string) {
 		return "      │ ▸ ", "      │   "
 	}
 	return "      │ ", "      │ "
+}
+
+func renderSidechainTurns(turns []turn, width int) []string {
+	const indent = "      │     "
+	avail := width - utf8.RuneCountInString(indent)
+	if avail < 10 {
+		avail = 10
+	}
+	var lines []string
+	for _, t := range turns {
+		prefix := ""
+		switch t.kind {
+		case "user":
+			prefix = "user: "
+		case "asst":
+			prefix = "asst: "
+		case "tool":
+			prefix = "▸ "
+		case "thinking":
+			continue
+		}
+		wrapped := wrapText(prefix+t.body, avail)
+		for _, ln := range wrapped {
+			lines = append(lines, indent+ln)
+		}
+	}
+	return lines
 }
 
 func renderDetailView(m model) string {
@@ -620,7 +657,7 @@ func renderHelpOverlay(m model) string {
  │    g/G          Jump to top/bottom                                        │
  │                                                                            │
  │  Turn Actions:                                                             │
- │    space         Expand/collapse a tool turn (shows key: value)           │
+ │    space         Expand/collapse tool turn; Agent ⧑ loads sidechain      │
  │    y             Copy the nearest user prompt to clipboard                │
  │    r             Enter re-run mode with the selected user prompt          │
  │                                                                            │

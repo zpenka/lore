@@ -127,6 +127,45 @@ func TestScanSessions_RecordsAbsolutePath(t *testing.T) {
 	}
 }
 
+func TestScanSessions_ExcludesSidechains(t *testing.T) {
+	dir := t.TempDir()
+	// Parent session
+	writeSession(t, dir, "-proj", "abc-123.jsonl",
+		userEventLine("parent", "2026-05-01T10:00:00Z", "/proj", "main", "parent-work"))
+	// Sidechain session in subagents dir (should be excluded)
+	writeSidechain(t, dir, "-proj", "abc-123", "agent-xyz.jsonl",
+		sidechainEventLine("xyz", "2026-05-01T10:01:00Z", "/proj", "main", "sidechain-work"))
+
+	got, err := scanSessions(dir)
+	if err != nil {
+		t.Fatalf("scanSessions: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1 (sidechain should be excluded)", len(got))
+	}
+	if got[0].ID != "parent" {
+		t.Errorf("ID = %q, want %q", got[0].ID, "parent")
+	}
+}
+
+func sidechainEventLine(agentID, ts, cwd, branch, slug string) string {
+	return fmt.Sprintf(
+		`{"type":"user","isSidechain":true,"agentId":%q,"timestamp":%q,"cwd":%q,"gitBranch":%q,"slug":%q,"sessionId":"parent-sid","message":{"content":"sidechain prompt"}}`,
+		agentID, ts, cwd, branch, slug,
+	)
+}
+
+func writeSidechain(t *testing.T, root, projectDir, sessionID, filename, content string) {
+	t.Helper()
+	dir := filepath.Join(root, projectDir, sessionID, "subagents")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, filename), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func userEventLine(id, ts, cwd, branch, slug string) string {
 	return fmt.Sprintf(
 		`{"type":"user","sessionId":%q,"timestamp":%q,"cwd":%q,"gitBranch":%q,"slug":%q}`,

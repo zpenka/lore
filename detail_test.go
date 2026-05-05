@@ -1,6 +1,8 @@
 package lore
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -212,6 +214,223 @@ func TestTurnExtraction_OtherEventTypesIgnored(t *testing.T) {
 	}
 	if len(turns) != 0 {
 		t.Fatalf("expected 0 turns for non-user/non-assistant events, got %d", len(turns))
+	}
+}
+
+// Sidechain tests
+
+func TestTurnExtraction_AgentToolHasToolUseID(t *testing.T) {
+	jsonl := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_abc123","name":"Agent","input":{"prompt":"do something","description":"test agent"}}]}}`
+	turns, err := parseTurnsFromJSONL(strings.NewReader(jsonl))
+	if err != nil {
+		t.Fatalf("parseTurnsFromJSONL failed: %v", err)
+	}
+	if len(turns) != 1 {
+		t.Fatalf("expected 1 turn, got %d", len(turns))
+	}
+	if turns[0].toolUseID != "toolu_abc123" {
+		t.Errorf("toolUseID = %q, want %q", turns[0].toolUseID, "toolu_abc123")
+	}
+}
+
+func TestTurnExtraction_NonAgentToolUseIDAlsoCaptured(t *testing.T) {
+	jsonl := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_xyz","name":"Bash","input":{"command":"ls"}}]}}`
+	turns, err := parseTurnsFromJSONL(strings.NewReader(jsonl))
+	if err != nil {
+		t.Fatalf("parseTurnsFromJSONL failed: %v", err)
+	}
+	if len(turns) != 1 {
+		t.Fatalf("expected 1 turn, got %d", len(turns))
+	}
+	if turns[0].toolUseID != "toolu_xyz" {
+		t.Errorf("toolUseID = %q, want %q", turns[0].toolUseID, "toolu_xyz")
+	}
+}
+
+func TestParseTurnsFromJSONL_LinksSidechainsByToolUseID(t *testing.T) {
+	// Parent JSONL: Agent tool_use followed by a user event with agentId and tool_result
+	jsonl := `{"type":"user","message":{"content":"start"},"sessionId":"sid","timestamp":"2026-05-01T10:00:00Z","cwd":"/proj","gitBranch":"main","slug":"test"}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_abc","name":"Agent","input":{"prompt":"explore the code","description":"explore"}}]}}
+{"type":"user","agentId":"agent123","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_abc","content":"explored successfully"}]}}`
+
+	turns, err := parseTurnsFromJSONL(strings.NewReader(jsonl))
+	if err != nil {
+		t.Fatalf("parseTurnsFromJSONL failed: %v", err)
+	}
+
+	// Find the Agent tool turn
+	var agentTurn *turn
+	for i := range turns {
+		if turns[i].kind == "tool" && strings.Contains(turns[i].body, "Agent") {
+			agentTurn = &turns[i]
+			break
+		}
+	}
+	if agentTurn == nil {
+		t.Fatal("no Agent tool turn found")
+	}
+	if agentTurn.sidechainID != "agent123" {
+		t.Errorf("sidechainID = %q, want %q", agentTurn.sidechainID, "agent123")
+	}
+}
+
+func TestSidechainsDir(t *testing.T) {
+	got := sidechainsDir("/home/user/.claude/projects/-proj/abc-123.jsonl")
+	want := "/home/user/.claude/projects/-proj/abc-123/subagents"
+	if got != want {
+		t.Errorf("sidechainsDir = %q, want %q", got, want)
+	}
+}
+
+func TestLoadSessionTurns_LinksSidechainPaths(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write parent session JSONL
+	parentJSONL := `{"type":"user","message":{"content":"start"},"sessionId":"sid","timestamp":"2026-05-01T10:00:00Z","cwd":"/proj","gitBranch":"main","slug":"test"}
+{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_abc","name":"Agent","input":{"prompt":"explore the code","description":"explore"}}]}}
+{"type":"user","agentId":"agent123","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_abc","content":"explored"}]}}`
+
+	parentPath := filepath.Join(dir, "abc-123.jsonl")
+	if err := os.WriteFile(parentPath, []byte(parentJSONL), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write sidechain file
+	sidechainDir := filepath.Join(dir, "abc-123", "subagents")
+	if err := os.MkdirAll(sidechainDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sidechainJSONL := `{"type":"user","isSidechain":true,"agentId":"agent123","message":{"content":"explore the code"},"sessionId":"sid","timestamp":"2026-05-01T10:00:01Z","cwd":"/proj","gitBranch":"main"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"I found some interesting code"}]}}`
+
+	sidechainPath := filepath.Join(sidechainDir, "agent-agent123.jsonl")
+	if err := os.WriteFile(sidechainPath, []byte(sidechainJSONL), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	turns, err := loadSessionTurns(parentPath)
+	if err != nil {
+		t.Fatalf("loadSessionTurns: %v", err)
+	}
+
+	var agentTurn *turn
+	for i := range turns {
+		if turns[i].kind == "tool" && strings.Contains(turns[i].body, "Agent") {
+			agentTurn = &turns[i]
+			break
+		}
+	}
+	if agentTurn == nil {
+		t.Fatal("no Agent tool turn found")
+	}
+	if agentTurn.sidechainPath != sidechainPath {
+		t.Errorf("sidechainPath = %q, want %q", agentTurn.sidechainPath, sidechainPath)
+	}
+}
+
+func TestModel_DetailMode_SpaceExpandsAgentSidechain(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write sidechain file
+	sidechainDir := filepath.Join(dir, "s1", "subagents")
+	if err := os.MkdirAll(sidechainDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sidechainJSONL := `{"type":"user","isSidechain":true,"agentId":"ag1","message":{"content":"do work"},"sessionId":"s1","timestamp":"2026-05-01T10:00:01Z","cwd":"/proj","gitBranch":"main"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"I did the work"}]}}`
+	sidechainPath := filepath.Join(sidechainDir, "agent-ag1.jsonl")
+	if err := os.WriteFile(sidechainPath, []byte(sidechainJSONL), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Path: filepath.Join(dir, "s1.jsonl"), Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{kind: "user", body: "hello"},
+		{kind: "tool", body: "Agent \"do work\"", sidechainID: "ag1", sidechainPath: sidechainPath},
+		{kind: "asst", body: "done"},
+	}
+	m.cursorDetail = 1
+	m.expandedTurns = make(map[int]bool)
+
+	next, _ := m.Update(keyMsg(" "))
+	nm := next.(model)
+
+	if !nm.expandedTurns[1] {
+		t.Error("Agent tool turn should be expanded after space")
+	}
+	scTurns, ok := nm.sidechainTurns[1]
+	if !ok {
+		t.Fatal("sidechainTurns[1] not populated after expanding Agent sidechain")
+	}
+	if len(scTurns) == 0 {
+		t.Fatal("sidechainTurns[1] is empty, expected parsed sidechain turns")
+	}
+	// Should have the user and assistant turns from the sidechain
+	hasUser := false
+	hasAsst := false
+	for _, st := range scTurns {
+		if st.kind == "user" && strings.Contains(st.body, "do work") {
+			hasUser = true
+		}
+		if st.kind == "asst" && strings.Contains(st.body, "I did the work") {
+			hasAsst = true
+		}
+	}
+	if !hasUser {
+		t.Error("sidechain turns missing user turn with 'do work'")
+	}
+	if !hasAsst {
+		t.Error("sidechain turns missing asst turn with 'I did the work'")
+	}
+}
+
+func TestDetailView_SidechainIndicator(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{kind: "user", body: "hello"},
+		{kind: "tool", body: "Agent \"explore code\"", sidechainID: "ag1", sidechainPath: "/some/path.jsonl"},
+		{kind: "asst", body: "done"},
+	}
+	m.cursorDetail = 0
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "⧑") {
+		t.Errorf("Agent turn with sidechain should show ⧑ indicator, got:\n%s", out)
+	}
+}
+
+func TestDetailView_ExpandedSidechainContent(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
+	m.turns = []turn{
+		{kind: "user", body: "hello"},
+		{kind: "tool", body: "Agent \"explore code\"", sidechainID: "ag1", sidechainPath: "/some/path.jsonl"},
+	}
+	m.cursorDetail = 1
+	m.expandedTurns = map[int]bool{1: true}
+	m.sidechainTurns = map[int][]turn{
+		1: {
+			{kind: "user", body: "explore the code"},
+			{kind: "asst", body: "Here is what I found"},
+			{kind: "tool", body: "Read \"main.go\""},
+		},
+	}
+	m.width = 100
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "explore the code") {
+		t.Errorf("expanded sidechain should show user turn, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Here is what I found") {
+		t.Errorf("expanded sidechain should show asst turn, got:\n%s", out)
 	}
 }
 

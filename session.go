@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -73,6 +74,9 @@ func scanSessions(rootDir string) ([]Session, error) {
 	var sessions []Session
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || filepath.Ext(path) != ".jsonl" {
+			return nil
+		}
+		if strings.Contains(path, string(filepath.Separator)+"subagents"+string(filepath.Separator)) {
 			return nil
 		}
 		f, ferr := os.Open(path)
