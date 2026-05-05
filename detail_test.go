@@ -688,51 +688,9 @@ func TestDetailView_ExpandedToolRender(t *testing.T) {
 	}
 }
 
-// Feature 2: Toggle thinking-block visibility with t
+// Thinking turns are always filtered out (content is redacted in session files).
 
-func TestModel_DetailMode_TTogglesThinking(t *testing.T) {
-	m := newModel("/d")
-	m.mode = modeDetail
-	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
-	m.turns = []turn{
-		{kind: "user", body: "hello"},
-		{kind: "thinking", body: "hmm let me think"},
-		{kind: "asst", body: "done"},
-	}
-	m.cursorDetail = 0
-	m.showThinking = false
-
-	next, _ := m.Update(keyMsg("t"))
-	nm := next.(model)
-	if !nm.showThinking {
-		t.Errorf("after 't': showThinking = false, want true")
-	}
-}
-
-func TestModel_DetailMode_TTogglesThinkingOff(t *testing.T) {
-	m := newModel("/d")
-	m.mode = modeDetail
-	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
-	m.turns = []turn{
-		{kind: "user", body: "hello"},
-		{kind: "thinking", body: "thinking"},
-		{kind: "asst", body: "done"},
-	}
-	m.cursorDetail = 1
-	m.showThinking = true
-
-	next, _ := m.Update(keyMsg("t"))
-	nm := next.(model)
-	if nm.showThinking {
-		t.Errorf("after 't': showThinking = true, want false")
-	}
-	// Cursor on thinking turn that became hidden should clamp
-	if nm.cursorDetail >= len(nm.visibleTurns()) {
-		t.Errorf("after hiding thinking turn: cursorDetail = %d, len(visibleTurns) = %d", nm.cursorDetail, len(nm.visibleTurns()))
-	}
-}
-
-func TestDetailView_ThinkingTurnHiddenByDefault(t *testing.T) {
+func TestDetailView_ThinkingTurnsAlwaysHidden(t *testing.T) {
 	m := newModel("/d")
 	m.mode = modeDetail
 	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
@@ -742,52 +700,12 @@ func TestDetailView_ThinkingTurnHiddenByDefault(t *testing.T) {
 		{kind: "asst", body: "answer"},
 	}
 	m.cursorDetail = 0
-	m.showThinking = false
 	m.width = 100
 	m.height = 40
 
 	out := m.View()
 	if strings.Contains(out, "internal reasoning") {
-		t.Errorf("thinking turn should be hidden by default, got:\n%s", out)
-	}
-}
-
-func TestDetailView_ThinkingTurnShownWhenToggled(t *testing.T) {
-	m := newModel("/d")
-	m.mode = modeDetail
-	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
-	m.turns = []turn{
-		{kind: "user", body: "ask"},
-		{kind: "thinking", body: "internal reasoning"},
-		{kind: "asst", body: "answer"},
-	}
-	m.cursorDetail = 0
-	m.showThinking = true
-	m.width = 100
-	m.height = 40
-
-	out := m.View()
-	if !strings.Contains(out, "internal reasoning") {
-		t.Errorf("thinking turn should be shown when showThinking=true, got:\n%s", out)
-	}
-	if !strings.Contains(out, "〰") {
-		t.Errorf("thinking turn should render with 〰 marker, got:\n%s", out)
-	}
-}
-
-func TestDetailView_FooterShowsThinkingToggle(t *testing.T) {
-	m := newModel("/d")
-	m.mode = modeDetail
-	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
-	m.turns = []turn{{kind: "user", body: "msg"}}
-	m.cursorDetail = 0
-	m.showThinking = false
-	m.width = 100
-	m.height = 40
-
-	out := m.View()
-	if !strings.Contains(out, "t") && !strings.Contains(out, "thinking") {
-		t.Errorf("footer should mention 't' thinking toggle, got:\n%s", out)
+		t.Errorf("thinking turns should always be hidden, got:\n%s", out)
 	}
 }
 
@@ -903,7 +821,7 @@ func TestDetailView_FooterShowsCopiedBriefly(t *testing.T) {
 	m.turns = []turn{{kind: "user", body: "msg"}}
 	m.cursorDetail = 0
 	m.justCopied = true
-	m.showThinking = false
+
 	m.width = 100
 	m.height = 40
 
@@ -922,29 +840,13 @@ func TestModel_VisibleTurnsFiltersThinking(t *testing.T) {
 		{kind: "thinking", body: "think"},
 		{kind: "asst", body: "answer"},
 	}
-	m.showThinking = false
 
 	visible := m.visibleTurns()
 	if len(visible) != 2 {
-		t.Errorf("visibleTurns with showThinking=false: len = %d, want 2", len(visible))
+		t.Errorf("visibleTurns: len = %d, want 2", len(visible))
 	}
 	if visible[0].kind != "user" || visible[1].kind != "asst" {
 		t.Errorf("visibleTurns filtered wrong turns")
-	}
-}
-
-func TestModel_VisibleTurnsIncludesThinking(t *testing.T) {
-	m := newModel("/d")
-	m.turns = []turn{
-		{kind: "user", body: "ask"},
-		{kind: "thinking", body: "think"},
-		{kind: "asst", body: "answer"},
-	}
-	m.showThinking = true
-
-	visible := m.visibleTurns()
-	if len(visible) != 3 {
-		t.Errorf("visibleTurns with showThinking=true: len = %d, want 3", len(visible))
 	}
 }
 
@@ -957,7 +859,6 @@ func TestModel_VisibleIndexToFullIndex(t *testing.T) {
 		{kind: "thinking", body: "more"},
 		{kind: "tool", body: "Read file"},
 	}
-	m.showThinking = false
 
 	// With thinking hidden, visible is [user, asst, tool] at indices [0, 2, 4]
 	testCases := []struct {
@@ -976,43 +877,6 @@ func TestModel_VisibleIndexToFullIndex(t *testing.T) {
 	}
 }
 
-func TestModel_VisibleIndexToFullIndex_WithThinking(t *testing.T) {
-	m := newModel("/d")
-	m.turns = []turn{
-		{kind: "user", body: "ask"},
-		{kind: "thinking", body: "think"},
-		{kind: "asst", body: "answer"},
-	}
-	m.showThinking = true
-
-	// With thinking shown, indices are direct: 0, 1, 2
-	for i := 0; i < 3; i++ {
-		got := m.visibleIndexToFullIndex(i)
-		if got != i {
-			t.Errorf("visibleIndexToFullIndex(%d) = %d, want %d", i, got, i)
-		}
-	}
-}
-
-func TestModel_CursorClampingAfterToggleThinking(t *testing.T) {
-	m := newModel("/d")
-	m.mode = modeDetail
-	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
-	m.turns = []turn{
-		{kind: "user", body: "ask"},
-		{kind: "thinking", body: "think"},
-	}
-	m.cursorDetail = 1 // On thinking turn
-	m.showThinking = true
-
-	next, _ := m.Update(keyMsg("t"))
-	nm := next.(model)
-	visible := nm.visibleTurns()
-	if nm.cursorDetail >= len(visible) {
-		t.Errorf("after hiding thinking turn: cursorDetail = %d >= len(visible) = %d", nm.cursorDetail, len(visible))
-	}
-}
-
 func TestModel_DetailMode_JMovesDownInVisibleList(t *testing.T) {
 	m := newModel("/d")
 	m.mode = modeDetail
@@ -1023,7 +887,6 @@ func TestModel_DetailMode_JMovesDownInVisibleList(t *testing.T) {
 		{kind: "asst", body: "answer"},
 	}
 	m.cursorDetail = 0
-	m.showThinking = false
 
 	next, _ := m.Update(keyMsg("j"))
 	nm := next.(model)
@@ -1042,7 +905,6 @@ func TestModel_DetailMode_KMovesUpInVisibleList(t *testing.T) {
 		{kind: "asst", body: "answer"},
 	}
 	m.cursorDetail = 1
-	m.showThinking = false
 
 	next, _ := m.Update(keyMsg("k"))
 	nm := next.(model)
@@ -1117,22 +979,6 @@ func TestModel_SessionDetailLoaded_WithError(t *testing.T) {
 	}
 	if nm.detailLoading {
 		t.Errorf("detailLoading should be false after msg arrives, got true")
-	}
-}
-
-func TestModel_DetailMode_TToggleResetsJustCopied(t *testing.T) {
-	m := newModel("/d")
-	m.mode = modeDetail
-	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
-	m.turns = []turn{{kind: "thinking", body: "think"}}
-	m.cursorDetail = 0
-	m.justCopied = true
-	m.showThinking = false
-
-	next, _ := m.Update(keyMsg("t"))
-	nm := next.(model)
-	if nm.justCopied {
-		t.Errorf("justCopied should be reset by 't' key")
 	}
 }
 

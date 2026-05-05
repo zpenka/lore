@@ -15,7 +15,7 @@ go build ./cmd/lore
 
 The tool reads session transcripts from `~/.claude/projects/` and displays them in a sortable, navigable list.
 
-**Current status (v0.6.0)**: All planned phases complete — session list with project/branch/fuzzy filters, session detail with tool expansion / diff rendering / turn position indicator / sidechain expansion, FTS5-indexed full-text search (with linear-scan fallback), project view, re-run (returns to list on exit), and a usage-stats panel showing token counts and estimated cost per session. See `DESIGN.md` for the full vision and roadmap.
+**Current status (v0.6.0)**: All planned phases complete — session list with query preview (first user message) and project/branch/fuzzy filters, session detail with tool expansion / diff rendering / turn position indicator / sidechain expansion, FTS5-indexed full-text search (with linear-scan fallback), project view, re-run (returns to list on exit), half-page scrolling (`d`/`u`) in all modes, and a usage-stats panel showing token counts and estimated cost per session. See `DESIGN.md` for the full vision and roadmap.
 
 ## Configuration
 
@@ -30,10 +30,10 @@ The FTS5 search index is cached under the platform-appropriate user cache dir (e
 
 Press `?` in any mode for the full keymap. Highlights:
 
-- **List**: `j`/`k` move, `g`/`G` jump, `enter` open, `p`/`b` filter project/branch, `f` fuzzy filter, `P` project view, `/` search, `S` usage stats, `q` quit.
-- **Detail**: `space` expand a tool turn (Agent turns with sidechains load the sub-conversation inline), `t` toggle thinking blocks, `y` copy the nearest user prompt, `r` re-run that prompt, `esc`/`h`/`←` back.
-- **Search**: type → `enter` to run, `j`/`k` through hits, `enter` to open.
-- **Project**: `j`/`k`, `enter` to open, `esc` back. Sessions are grouped by branch.
+- **List**: `j`/`k` move, `d`/`u` half-page, `g`/`G` jump, `enter` open, `p`/`b` filter project/branch, `f` fuzzy filter, `P` project view, `/` search, `S` usage stats, `q` quit.
+- **Detail**: `d`/`u` half-page, `space` expand a tool turn (Agent turns with sidechains load the sub-conversation inline), `y` copy the nearest user prompt, `r` re-run that prompt, `esc`/`h`/`←` back.
+- **Search**: type → `enter` to run, `j`/`k` or `d`/`u` through hits, `enter` to open.
+- **Project**: `j`/`k`, `d`/`u`, `enter` to open, `esc` back. Sessions are grouped by branch.
 - **Re-run**: `enter` to spawn `claude` with the chosen prompt and CWD; `esc` to cancel.
 - **Stats**: `j`/`k`, `g`/`G` to navigate; `esc`/`q` back. Columns: project · branch · model · input/output tokens · estimated cost.
 

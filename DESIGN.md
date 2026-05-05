@@ -105,8 +105,9 @@ Each `user` event carries the full context needed for list-views:
 }
 ```
 
-The `slug` is gold — a free human-readable label the tool can use as the
-session title in any list view.
+The `slug` field is rarely populated in practice. The first user message
+(extracted as `Session.Query`) serves as the session title in list and
+project views, with slug as a fallback.
 
 ---
 
@@ -136,7 +137,7 @@ Most-recent sessions across every project, grouped by relative time.
 ```
 
 - Sort: most recent first, grouped by relative time bucket.
-- Each row: time, project (decoded from path), git branch, slug.
+- Each row: time, project, git branch, query preview (first user message, falls back to slug).
 - Cheap implementation: `os.Stat` mtimes for ordering, then read just the
   first `user` event of each `.jsonl` to populate the row.
 - `p` opens an inline filter scoped to a single project; `b` to a single branch.
@@ -161,12 +162,12 @@ asst   │ I'll start by exploring grit's structure to understand patterns.
 asst   │ ▸ Write /root/.claude/plans/hey-so-i-want-twinkly-aho.md
        │ Writing the plan now.
 ─────────────────────────────────────────────────────────────────────────────
- j/k scroll   space expand tool call   t toggle thinking   y copy turn
+ j/k scroll   d/u page   space expand tool call   y copy turn
 ```
 
 - Tool calls collapsed to one line by default (`▸ Tool "args" [N lines]`).
   `space` expands.
-- `thinking` blocks hidden by default (`t` to toggle).
+- `thinking` blocks are always filtered out (session files redact their content).
 - `y` yanks the selected turn's user prompt to the clipboard — instant
   re-prompt material.
 - For `Edit` / `Write` tool calls, the expansion renders the diff using

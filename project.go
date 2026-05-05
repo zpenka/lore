@@ -67,9 +67,13 @@ func projectBodyLines(m model, now time.Time) (lines []string, cursorLine int) {
 
 		for _, sess := range group.Sessions {
 			isSelected := (sessionIdx == m.projectCursor)
+			label := sess.Query
+			if label == "" {
+				label = sess.Slug
+			}
 			row := fmt.Sprintf("  %s  %s",
 				sess.Timestamp.Format("15:04"),
-				sess.Slug,
+				label,
 			)
 			if isSelected {
 				cursorLine = len(lines)
@@ -131,5 +135,5 @@ func renderProjectFooter(m model) string {
 	if m.flashMsg != "" {
 		return flashStyle.Render(" " + m.flashMsg)
 	}
-	return footerStyle.Render(" j/k move   enter open   g/G top/bottom   q/esc back")
+	return footerStyle.Render(" j/k move   d/u page   enter open   g/G top/bottom   q/esc back")
 }

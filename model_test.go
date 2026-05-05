@@ -1,6 +1,7 @@
 package lore
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -466,6 +467,81 @@ func TestModel_NavigationOnVisibleList(t *testing.T) {
 	m = next.(model)
 	if m.cursor != 1 {
 		t.Errorf("after second 'j': cursor = %d, want 1 (bounded by visible)", m.cursor)
+	}
+}
+
+// Half-page scrolling tests
+
+func TestModel_ListMode_DMovesDownHalfPage(t *testing.T) {
+	var sessions []Session
+	for i := 0; i < 40; i++ {
+		sessions = append(sessions, Session{ID: fmt.Sprintf("s%d", i), Slug: fmt.Sprintf("s%d", i), Timestamp: time.Now()})
+	}
+	m := loadedModelWith(sessions...)
+	m.height = 30 // bodyHeight = 30 - chromeLines
+
+	next, _ := m.Update(keyMsg("d"))
+	nm := next.(model)
+	if nm.cursor == 0 {
+		t.Error("'d' in list mode should move cursor down by half page, but cursor stayed at 0")
+	}
+	if nm.cursor >= len(sessions) {
+		t.Errorf("'d' moved cursor past end: %d", nm.cursor)
+	}
+}
+
+func TestModel_ListMode_UMovesUpHalfPage(t *testing.T) {
+	var sessions []Session
+	for i := 0; i < 40; i++ {
+		sessions = append(sessions, Session{ID: fmt.Sprintf("s%d", i), Slug: fmt.Sprintf("s%d", i), Timestamp: time.Now()})
+	}
+	m := loadedModelWith(sessions...)
+	m.height = 30
+	m.cursor = 20
+
+	next, _ := m.Update(keyMsg("u"))
+	nm := next.(model)
+	if nm.cursor == 20 {
+		t.Error("'u' in list mode should move cursor up by half page, but cursor stayed at 20")
+	}
+	if nm.cursor < 0 {
+		t.Errorf("'u' moved cursor below 0: %d", nm.cursor)
+	}
+}
+
+func TestModel_DetailMode_DMovesDownHalfPage(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "x"}
+	for i := 0; i < 30; i++ {
+		m.turns = append(m.turns, turn{kind: "user", body: fmt.Sprintf("turn %d", i)})
+	}
+	m.expandedTurns = make(map[int]bool)
+	m.cursorDetail = 0
+	m.height = 20
+
+	next, _ := m.Update(keyMsg("d"))
+	nm := next.(model)
+	if nm.cursorDetail == 0 {
+		t.Error("'d' in detail mode should move cursor down by half page, but cursor stayed at 0")
+	}
+}
+
+func TestModel_DetailMode_UMovesUpHalfPage(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "x"}
+	for i := 0; i < 30; i++ {
+		m.turns = append(m.turns, turn{kind: "user", body: fmt.Sprintf("turn %d", i)})
+	}
+	m.expandedTurns = make(map[int]bool)
+	m.cursorDetail = 20
+	m.height = 20
+
+	next, _ := m.Update(keyMsg("u"))
+	nm := next.(model)
+	if nm.cursorDetail == 20 {
+		t.Error("'u' in detail mode should move cursor up by half page, but cursor stayed at 20")
 	}
 }
 

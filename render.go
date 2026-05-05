@@ -82,7 +82,7 @@ func listBodyLines(m model, now time.Time) (lines []string, cursorLine int) {
 		if i == m.cursor {
 			cursorLine = len(lines)
 		}
-		lines = append(lines, renderRow(s, i == m.cursor))
+		lines = append(lines, renderRow(s, i == m.cursor, m.width))
 	}
 	return
 }
@@ -296,17 +296,13 @@ func renderDetailFooter(m model) string {
 	if m.flashMsg != "" {
 		return flashStyle.Render(" " + m.flashMsg)
 	}
-	thinkingLabel := "thinking"
-	if m.showThinking {
-		thinkingLabel = "hide thinking"
-	}
 	copyStatus := ""
 	if m.justCopied {
 		copyStatus = "  ✓ copied"
 	}
 	return footerStyle.Render(fmt.Sprintf(
-		" j/k move   g/G top/bottom   space expand   t %s   y copy   r run   q/esc/h/← back%s",
-		thinkingLabel, copyStatus))
+		" j/k move   d/u page   g/G top/bottom   space expand   y copy   r run   q/esc/h/← back%s",
+		copyStatus))
 }
 
 // ----- list header / row helpers -----
@@ -334,17 +330,27 @@ func renderRows(m model, now time.Time) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-func renderRow(s Session, selected bool) string {
+func renderRow(s Session, selected bool, width int) string {
 	cursor := "  "
 	if selected {
 		cursor = " ►"
 	}
-	row := fmt.Sprintf("%s %s  %-12s  %-26s  %s",
+	// Fixed columns: cursor(2) + space(1) + time(5) + gap(2) + project(12) + gap(2) + branch(20) + gap(2) = 46
+	const fixedCols = 48
+	query := s.Query
+	if query == "" {
+		query = s.Slug
+	}
+	queryWidth := width - fixedCols
+	if queryWidth < 10 {
+		queryWidth = 10
+	}
+	row := fmt.Sprintf("%s %s  %-12s  %-20s  %s",
 		cursor,
 		s.Timestamp.Format("15:04"),
 		padTrunc(s.Project, 12),
-		padTrunc(s.Branch, 26),
-		s.Slug,
+		padTrunc(s.Branch, 20),
+		padTrunc(query, queryWidth),
 	)
 	if selected {
 		return selectedStyle.Render(row)
@@ -390,7 +396,7 @@ func renderFooter(m model) string {
 			return footerStyle.Render(fmt.Sprintf(" fuzzy filter: %s   j/k · enter open · esc clear   q quit", m.filterText))
 		}
 	}
-	return footerStyle.Render(" j/k move   enter open   / search   p filter project   b filter branch   f fuzzy   P project view   S usage stats   g/G top/bottom   q quit")
+	return footerStyle.Render(" j/k move   d/u page   enter open   / search   p filter project   b filter branch   f fuzzy   P project view   S usage stats   g/G top/bottom   q quit")
 }
 
 // padTrunc trims s to max display columns or right-pads it to fit.
@@ -629,6 +635,7 @@ func renderHelpOverlay(m model) string {
  │                                                                           │
  │  Navigation:                                                              │
  │    j/k, ↑/↓     Move cursor                                              │
+ │    d/u          Half-page down/up                                        │
  │    g/G          Jump to top/bottom                                       │
  │    enter, l, →  Open the highlighted session                            │
  │                                                                           │
@@ -654,6 +661,7 @@ func renderHelpOverlay(m model) string {
  │                                                                            │
  │  Navigation:                                                               │
  │    j/k, ↑/↓     Scroll through turns                                      │
+ │    d/u          Half-page down/up                                          │
  │    g/G          Jump to top/bottom                                        │
  │                                                                            │
  │  Turn Actions:                                                             │
@@ -662,7 +670,6 @@ func renderHelpOverlay(m model) string {
  │    r             Enter re-run mode with the selected user prompt          │
  │                                                                            │
  │  Display:                                                                  │
- │    t             Toggle thinking blocks (hidden by default)               │
  │    ?             Show this help overlay                                   │
  │                                                                            │
  │  Return to List:                                                           │
@@ -682,6 +689,7 @@ func renderHelpOverlay(m model) string {
  │                                                                            │
  │  Search Results:                                                           │
  │    j/k, ↑/↓     Move through results (sorted by hit count)               │
+ │    d/u          Half-page down/up                                          │
  │    g/G          Jump to top/bottom                                        │
  │    enter        Open the selected session in detail                       │
  │    /            Re-search (edit query)                                    │
@@ -697,6 +705,7 @@ func renderHelpOverlay(m model) string {
  │                                                                            │
  │  Navigation:                                                               │
  │    j/k, ↑/↓     Move within the project's sessions                        │
+ │    d/u          Half-page down/up                                          │
  │    g/G          Jump to top/bottom                                        │
  │    enter        Open session detail                                       │
  │                                                                            │

@@ -52,7 +52,6 @@ type model struct {
 	detailErr     error              // Error loading/parsing detail session
 	detailLoading bool               // True while loading session content
 	expandedTurns map[int]bool       // Tracks which turns are expanded (index -> expanded)
-	showThinking  bool               // Whether thinking turns are visible
 	justCopied    bool               // Brief flag set after successful copy
 	clipboardFn   func(string) error // Dependency-injected clipboard function
 
@@ -105,7 +104,6 @@ func newModel(projectsDir string) model {
 		projectsDir:   projectsDir,
 		loading:       true,
 		expandedTurns: make(map[int]bool),
-		showThinking:  false,
 		justCopied:    false,
 		clipboardFn:   copyToClipboard, // Default to real implementation
 		rerunFn:       rerunClaude,     // Default to real implementation
@@ -285,6 +283,30 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 		m = m.clampListOffsetNow()
+	case "d":
+		if !m.loading && len(m.visibleSessions) > 0 {
+			half := m.bodyHeight() / 2
+			if half < 1 {
+				half = 1
+			}
+			m.cursor += half
+			if m.cursor >= len(m.visibleSessions) {
+				m.cursor = len(m.visibleSessions) - 1
+			}
+		}
+		m = m.clampListOffsetNow()
+	case "u":
+		if !m.loading {
+			half := m.bodyHeight() / 2
+			if half < 1 {
+				half = 1
+			}
+			m.cursor -= half
+			if m.cursor < 0 {
+				m.cursor = 0
+			}
+		}
+		m = m.clampListOffsetNow()
 	case "g":
 		if !m.loading {
 			m.cursor = 0
@@ -367,7 +389,6 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.detailOffset = 0
 		m.expandedTurns = make(map[int]bool)
 		m.sidechainTurns = nil
-		m.showThinking = false
 		m.justCopied = false
 		return m, nil
 	case "j", "down":
@@ -380,6 +401,32 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		if m.cursorDetail > 0 {
 			m.cursorDetail--
+		}
+		m.justCopied = false
+		m = m.clampDetailOffsetNow()
+	case "d":
+		visible := m.visibleTurns()
+		half := m.bodyHeight() / 2
+		if half < 1 {
+			half = 1
+		}
+		m.cursorDetail += half
+		if m.cursorDetail >= len(visible) {
+			m.cursorDetail = len(visible) - 1
+		}
+		if m.cursorDetail < 0 {
+			m.cursorDetail = 0
+		}
+		m.justCopied = false
+		m = m.clampDetailOffsetNow()
+	case "u":
+		half := m.bodyHeight() / 2
+		if half < 1 {
+			half = 1
+		}
+		m.cursorDetail -= half
+		if m.cursorDetail < 0 {
+			m.cursorDetail = 0
 		}
 		m.justCopied = false
 		m = m.clampDetailOffsetNow()
@@ -414,13 +461,6 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				m.flashMsg = "space: cursor is not on a tool turn"
 			}
-		}
-		m.justCopied = false
-	case "t":
-		m.showThinking = !m.showThinking
-		visible := m.visibleTurns()
-		if m.cursorDetail >= len(visible) && len(visible) > 0 {
-			m.cursorDetail = len(visible) - 1
 		}
 		m.justCopied = false
 	case "y":
@@ -541,6 +581,28 @@ func (m model) handleProjectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.projectCursor--
 		}
 		m = m.clampProjectOffsetNow()
+	case "d":
+		if len(m.projectSessions) > 0 {
+			half := m.bodyHeight() / 2
+			if half < 1 {
+				half = 1
+			}
+			m.projectCursor += half
+			if m.projectCursor >= len(m.projectSessions) {
+				m.projectCursor = len(m.projectSessions) - 1
+			}
+		}
+		m = m.clampProjectOffsetNow()
+	case "u":
+		half := m.bodyHeight() / 2
+		if half < 1 {
+			half = 1
+		}
+		m.projectCursor -= half
+		if m.projectCursor < 0 {
+			m.projectCursor = 0
+		}
+		m = m.clampProjectOffsetNow()
 	case "g":
 		m.projectCursor = 0
 		m = m.clampProjectOffsetNow()
@@ -571,6 +633,28 @@ func (m model) handleSearchResultsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		if m.searchCursor > 0 {
 			m.searchCursor--
+		}
+		m = m.clampSearchOffsetNow()
+	case "d":
+		if len(m.searchResults) > 0 {
+			half := m.bodyHeight() / 2
+			if half < 1 {
+				half = 1
+			}
+			m.searchCursor += half
+			if m.searchCursor >= len(m.searchResults) {
+				m.searchCursor = len(m.searchResults) - 1
+			}
+		}
+		m = m.clampSearchOffsetNow()
+	case "u":
+		half := m.bodyHeight() / 2
+		if half < 1 {
+			half = 1
+		}
+		m.searchCursor -= half
+		if m.searchCursor < 0 {
+			m.searchCursor = 0
 		}
 		m = m.clampSearchOffsetNow()
 	case "g":
@@ -771,12 +855,9 @@ func (m *model) applyFilter() {
 	}
 }
 
-// visibleTurns returns the list of turns filtered by visibility (e.g., thinking blocks).
+// visibleTurns returns the list of turns filtered by visibility.
+// Thinking blocks are always filtered out (session files redact their content).
 func (m model) visibleTurns() []turn {
-	if m.showThinking {
-		return m.turns
-	}
-	// Filter out thinking turns
 	var visible []turn
 	for _, t := range m.turns {
 		if t.kind != "thinking" {
@@ -790,7 +871,7 @@ func (m model) visibleTurns() []turn {
 func (m model) visibleIndexToFullIndex(visibleIdx int) int {
 	count := 0
 	for i, t := range m.turns {
-		if m.showThinking || t.kind != "thinking" {
+		if t.kind != "thinking" {
 			if count == visibleIdx {
 				return i
 			}

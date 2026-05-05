@@ -21,16 +21,18 @@ type Session struct {
 	Project   string    // basename of CWD
 	Branch    string    // gitBranch at session start
 	Slug      string    // human-readable session label
+	Query     string    // first user message text (preview for list view)
 	Timestamp time.Time // timestamp of the first user event
 }
 
 type rawUserEvent struct {
-	Type      string `json:"type"`
-	SessionID string `json:"sessionId"`
-	Timestamp string `json:"timestamp"`
-	CWD       string `json:"cwd"`
-	GitBranch string `json:"gitBranch"`
-	Slug      string `json:"slug"`
+	Type      string          `json:"type"`
+	SessionID string          `json:"sessionId"`
+	Timestamp string          `json:"timestamp"`
+	CWD       string          `json:"cwd"`
+	GitBranch string          `json:"gitBranch"`
+	Slug      string          `json:"slug"`
+	Message   json.RawMessage `json:"message"`
 }
 
 // parseSessionMetadata returns metadata extracted from the first "user" event
@@ -57,6 +59,7 @@ func parseSessionMetadata(r io.Reader) (Session, error) {
 			Project:   filepath.Base(ev.CWD),
 			Branch:    ev.GitBranch,
 			Slug:      ev.Slug,
+			Query:     extractQuery(ev.Message),
 			Timestamp: ts,
 		}, nil
 	}
@@ -99,4 +102,48 @@ func scanSessions(rootDir string) ([]Session, error) {
 		return sessions[i].Timestamp.After(sessions[j].Timestamp)
 	})
 	return sessions, nil
+}
+
+func extractQuery(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var msg struct {
+		Content json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(raw, &msg); err != nil || len(msg.Content) == 0 {
+		return ""
+	}
+
+	// Content can be a plain string or an array of content blocks.
+	var s string
+	if err := json.Unmarshal(msg.Content, &s); err == nil {
+		return collapseWhitespace(s)
+	}
+
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(msg.Content, &blocks); err == nil {
+		var parts []string
+		for _, b := range blocks {
+			if b.Type == "text" && b.Text != "" {
+				parts = append(parts, b.Text)
+			}
+		}
+		return collapseWhitespace(strings.Join(parts, " "))
+	}
+	return ""
+}
+
+func collapseWhitespace(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = strings.ReplaceAll(s, "\t", " ")
+	// Collapse runs of spaces.
+	for strings.Contains(s, "  ") {
+		s = strings.ReplaceAll(s, "  ", " ")
+	}
+	return strings.TrimSpace(s)
 }
