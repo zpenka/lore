@@ -1,6 +1,7 @@
 package lore
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -211,6 +212,27 @@ func TestRenderProjectView_Header(t *testing.T) {
 	}
 	if !containsFold(out, "2") {
 		t.Errorf("project view missing session count:\n%s", out)
+	}
+}
+
+func TestRenderProjectView_ShowsQueryPreview(t *testing.T) {
+	now := time.Now()
+	m := loadedModelWith(
+		Session{ID: "a", CWD: "/p", Project: "p", Branch: "main", Query: "fix the login flow", Timestamp: now},
+		Session{ID: "b", CWD: "/p", Project: "p", Branch: "main", Query: "add unit tests", Timestamp: now.Add(-1 * time.Hour)},
+	)
+	m.mode = modeProject
+	m.projectCWD = "/p"
+	m.projectSessions = []Session{m.sessions[0], m.sessions[1]}
+	m.projectCursor = 0
+	m.width = 80
+
+	out := renderProjectView(m, now)
+	if !strings.Contains(out, "fix the login flow") {
+		t.Errorf("project view should show query preview 'fix the login flow':\n%s", out)
+	}
+	if !strings.Contains(out, "add unit tests") {
+		t.Errorf("project view should show query preview 'add unit tests':\n%s", out)
 	}
 }
 
