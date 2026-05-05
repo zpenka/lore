@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **lore** is a keyboard-driven TUI (Terminal User Interface) for browsing Claude Code session history. It reads session transcripts from `~/.claude/projects/<encoded-cwd>/*.jsonl` and provides rich navigation, filtering, and search across sessions.
 
-Current status: **v0.5.0 — Phases 1–5 and most of Phase 7 complete.** Implemented:
+Current status: **v0.6.0 — All planned phases complete.** Implemented:
 
 - Session list (3.1) with relative-time bucketing.
 - Inline project (`p`), branch (`b`), and fuzzy (`f`) filters with fuzzy ranking.
@@ -16,10 +16,9 @@ Current status: **v0.5.0 — Phases 1–5 and most of Phase 7 complete.** Implem
 - Re-run (3.5) via `tea.ExecProcess` so the spawned `claude` owns the TTY cleanly. Returns to the session list on exit and surfaces spawn errors.
 - Usage stats panel (Phase 5c, `S` key): token counts and estimated cost per session.
 - Configurable projects directory (`--dir` flag, `LORE_PROJECTS_DIR` env var).
+- Sidechain handling (Phase 7): sub-agent transcripts are filtered from the session list and viewable inline in the detail view by expanding Agent tool turns.
 - Help overlay (`?`) with mode-specific keybindings.
 - Per-mode viewport scrolling, mode-specific footers, and one-shot flash messages for no-op keys.
-
-Outstanding: sidechain handling (the only remaining Phase 7 item). The Phase 6 repo split has already happened — this is the standalone `github.com/zpenka/lore` module.
 
 See `DESIGN.md` for the full product vision and phasing roadmap.
 
@@ -79,7 +78,7 @@ The project uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) for th
 - `render.go`: `View()`, mode-specific renderers (`renderListView`, `renderDetailView`, `renderSearchView`, `renderStatsView`, etc.), the help overlay, and all Lipgloss styles.
 - `session.go`: `Session` struct and `scanSessions()` / `parseSessionMetadata()` — reads only the first `user` event of each `.jsonl`.
 - `bucket.go`: `timeBucket()` returns labels like "today", "yesterday", "this week" for relative-time grouping.
-- `detail.go`: Mode constants (`modeList`, `modeDetail`, `modeSearch`, `modeProject`, `modeRerun`, `modeStats`), `turn` struct, `parseTurnsFromJSONL()`, and assistant/tool block extraction.
+- `detail.go`: Mode constants (`modeList`, `modeDetail`, `modeSearch`, `modeProject`, `modeRerun`, `modeStats`), `turn` struct, `parseTurnsFromJSONL()`, assistant/tool block extraction, and sidechain linking (`loadSessionTurns`, `sidechainsDir`, `loadSidechainTurns`).
 - `search.go`: `searchSessions()` — linear-scan full-text search returning `SearchHit`s ranked by hit count. Used as the fallback path when the FTS5 index is unavailable.
 - `index.go`: SQLite FTS5 search index. `OpenIndex(cacheDir)`, `Index.Sync(projectsDir)` for incremental mtime-based reindexing, `Index.Search(query)` for ranked FTS5 lookups, and `extractSessionText()` for indexable content.
 - `stats.go`: Usage-stats data layer. `parseSessionStats()` sums `assistant.message.usage` token counts; `estimateCost()` applies a per-million-token pricing table (Opus / Sonnet / Haiku); `formatTokenCount()` adds k/M suffixes.
@@ -106,7 +105,7 @@ The project uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) for th
 
 Notable per-mode state:
 - **List**: `sessions`, `visibleSessions`, `cursor`, `filterMode` / `filterText` / `appliedFilterMode` for the inline `p` / `b` / `f` filters.
-- **Detail**: `detailSession`, `turns`, `cursorDetail`, `expandedTurns` (which tool turns are unfolded), `showThinking`, `justCopied`.
+- **Detail**: `detailSession`, `turns`, `cursorDetail`, `expandedTurns` (which tool turns are unfolded), `showThinking`, `justCopied`, `sidechainTurns` (lazy-loaded sidechain content keyed by turn index).
 - **Search**: `searchMode` (entry vs. results), `searchQuery`, `searchResults`, `searchCursor`. The FTS5 `index` is lazy-opened on the first `enter` press and falls back to linear scan on miss/error.
 - **Project**: `projectCWD`, `projectSessions`, `projectCursor`.
 - **Rerun**: `rerunPrompt`, `rerunCWD`, plus an injectable `rerunFn` so tests can substitute `tea.ExecProcess`.
@@ -161,7 +160,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 
 **Detail mode** (`modeDetail`):
 - `j` / `k`, `g` / `G`: Move / jump.
-- `space`: Expand or collapse a tool turn (the cursor must be on one).
+- `space`: Expand or collapse a tool turn (the cursor must be on one). Agent turns with sidechains load the sub-agent conversation inline.
 - `t`: Toggle thinking blocks (hidden by default).
 - `y`: Copy the user prompt at-or-before the cursor to the clipboard.
 - `r`: Re-run with the current user prompt (enters re-run mode).
@@ -205,7 +204,7 @@ Body math goes through one of `listBodyLines`, `detailBodyLines`, `searchBodyLin
 | 5b — List-level fuzzy matching (`f` key) | ✅ Complete |
 | 5c — Cost/usage stats panel | ✅ Complete (`stats.go`, `S` from list mode) |
 | 6 — Repo split into `github.com/zpenka/lore` | ✅ Done (this is that repo) |
-| 7 — Quality-of-life | 🔶 Partial (back-nav, re-run return-to-list, turn indicator, configurable projects dir done; sidechain handling remaining) |
+| 7 — Quality-of-life | ✅ Complete (back-nav, re-run return-to-list, turn indicator, configurable projects dir, sidechain handling) |
 
 ## Repo Layout
 
@@ -219,7 +218,7 @@ lore/
 ├── model.go            # Bubble Tea model + per-mode key dispatchers
 ├── render.go           # View(), per-mode renderers, help overlay, Lipgloss styles
 ├── session.go          # Session struct, scanSessions(), parseSessionMetadata()
-├── detail.go           # Mode constants, turn struct, JSONL → turns parser
+├── detail.go           # Mode constants, turn struct, JSONL → turns parser, sidechain linking
 ├── search.go           # Linear-scan full-text search (fallback path)
 ├── index.go            # SQLite FTS5 search index (Phase 5a)
 ├── stats.go            # Token-usage parsing + cost estimation (Phase 5c)

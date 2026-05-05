@@ -657,7 +657,7 @@ func renderHelpOverlay(m model) string {
  │    g/G          Jump to top/bottom                                        │
  │                                                                            │
  │  Turn Actions:                                                             │
- │    space         Expand/collapse a tool turn (shows key: value)           │
+ │    space         Expand/collapse tool turn; Agent ⧑ loads sidechain      │
  │    y             Copy the nearest user prompt to clipboard                │
  │    r             Enter re-run mode with the selected user prompt          │
  │                                                                            │

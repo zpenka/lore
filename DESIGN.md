@@ -2,10 +2,9 @@
 
 A keyboard-driven TUI for browsing your Claude Code session history.
 
-> **Status:** v0.5.0 — Phases 1–5 and most of Phase 7 implemented.
+> **Status:** v0.6.0 — All planned phases complete.
 > The repo split (Phase 6) has happened — this is the standalone
-> `github.com/zpenka/lore` module. Sidechain handling is the only
-> outstanding Phase 7 item. See [Phasing](#phasing) for status.
+> `github.com/zpenka/lore` module. See [Phasing](#phasing) for status.
 >
 > Name landed on `lore`.
 
@@ -283,7 +282,7 @@ Nothing else. Stay lean.
 | 5b | **List-level fuzzy matching** — `f` key, matches across slug+project+branch | ✅ Done |
 | 5c | **Cost/usage stats panel** — token usage and estimated cost per session | ✅ Done |
 | 6 | Standalone `github.com/zpenka/lore` repo | ✅ Done |
-| 7 | **Quality-of-life** — sidechain handling, re-run UX, back-nav, turn indicator, configurable dir | 🔶 Partial (sidechain remaining) |
+| 7 | **Quality-of-life** — sidechain handling, re-run UX, back-nav, turn indicator, configurable dir | ✅ Done |
 
 Beyond the phased work, several quality-of-life items also landed:
 inline fuzzy ranking for the `p` / `b` filters, a `?` help overlay with
@@ -343,9 +342,12 @@ Implemented as `modeStats` in `stats.go` and `render.go::renderStatsView`.
 
 Smaller improvements identified during the 0.4.0 code review:
 
-- **Sidechain handling.** Sub-agent transcripts (`isSidechain: true`)
-  are currently ignored by `parseTurnsFromJSONL`. Inline-collapse them
-  under the parent turn in detail view.
+- ~~**Sidechain handling.**~~ ✅ Done — sub-agent transcripts are filtered
+  from the session list (files under `subagents/` dirs are skipped) and
+  viewable inline in the detail view. Agent tool turns are linked to their
+  sidechain files via `toolUseID→agentId` mapping; expanding them with
+  `space` loads and renders the sidechain conversation indented below.
+  Agent turns with sidechains show a `⧑` prefix indicator.
 - ~~**Re-enter list after re-run.**~~ ✅ Done — lore now returns to the
   session list when `claude` exits and surfaces spawn errors via flash message.
 - ~~**`h` / `←` back-navigation in detail mode.**~~ ✅ Done — both keys
@@ -384,8 +386,8 @@ Resolved in Phase 5:
   picks `~/Library/Caches/lore/` on Darwin and `~/.cache/lore/` on
   Linux automatically.
 
-Still open:
+Resolved in Phase 7:
 
-- **Sidechain handling.** Sub-agent transcripts (`isSidechain: true`) — fold
-  inline under the parent turn, or separate panel? Leaning inline-collapsed
-  (Phase 7).
+- **Sidechain handling.** Went with inline-collapsed under the parent Agent
+  tool turn in detail view. Sidechains are filtered from the session list
+  and loaded on demand when expanded.
