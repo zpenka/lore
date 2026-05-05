@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -23,19 +25,20 @@ const (
 	searchModeResults
 )
 
-// turn represents a single exchange in the detail view.
-// kind is "user", "asst" (assistant text), "tool" (tool use), or "thinking".
 type turn struct {
-	kind  string                 // "user", "asst", "tool", or "thinking"
-	body  string                 // the rendered text/snippet
-	input map[string]interface{} // tool input (only for tool turns)
+	kind          string
+	body          string
+	input         map[string]interface{}
+	toolUseID     string // "id" from tool_use block (for sidechain linking)
+	sidechainID   string // agentId of the linked sidechain (set during parse)
+	sidechainPath string // absolute path to sidechain JSONL (set by loadSessionTurns)
 }
 
-// rawEvent is the generic JSON event structure from JSONL
 type rawEvent struct {
 	Type    string          `json:"type"`
+	AgentID string          `json:"agentId,omitempty"`
 	Message *rawMessage     `json:"message,omitempty"`
-	Content json.RawMessage `json:"content,omitempty"` // For direct content field if present
+	Content json.RawMessage `json:"content,omitempty"`
 }
 
 type rawMessage struct {
@@ -50,23 +53,24 @@ type rawContentBlock struct {
 	Input interface{} `json:"input,omitempty"`
 }
 
-// parseTurnsFromJSONL reads a JSONL stream and extracts turns.
-// Returns a slice of turn structs and any error encountered during parsing.
 func parseTurnsFromJSONL(r io.Reader) ([]turn, error) {
 	var turns []turn
+	// Maps tool_use_id → agentId for sidechain linking.
+	sidechainMap := make(map[string]string)
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
 
 	for scanner.Scan() {
 		var ev rawEvent
 		if err := json.Unmarshal(scanner.Bytes(), &ev); err != nil {
-			// Malformed line; skip
 			continue
 		}
 
-		// Extract turns based on event type
 		switch ev.Type {
 		case "user":
+			if ev.AgentID != "" {
+				collectSidechainLink(&ev, sidechainMap)
+			}
 			if userTurns := extractUserTurns(&ev); len(userTurns) > 0 {
 				turns = append(turns, userTurns...)
 			}
@@ -74,14 +78,82 @@ func parseTurnsFromJSONL(r io.Reader) ([]turn, error) {
 			if asstTurns := extractAssistantTurns(&ev); len(asstTurns) > 0 {
 				turns = append(turns, asstTurns...)
 			}
-			// All other event types ignored
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
+
+	for i := range turns {
+		if turns[i].toolUseID != "" {
+			if agentID, ok := sidechainMap[turns[i].toolUseID]; ok {
+				turns[i].sidechainID = agentID
+			}
+		}
+	}
+
 	return turns, nil
+}
+
+func collectSidechainLink(ev *rawEvent, m map[string]string) {
+	if ev.Message == nil || ev.Message.Content == nil {
+		return
+	}
+	blocks, ok := ev.Message.Content.([]interface{})
+	if !ok {
+		return
+	}
+	for _, b := range blocks {
+		bm, ok := b.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if bm["type"] == "tool_result" {
+			if tid, ok := bm["tool_use_id"].(string); ok {
+				m[tid] = ev.AgentID
+			}
+		}
+	}
+}
+
+func sidechainsDir(sessionPath string) string {
+	base := strings.TrimSuffix(sessionPath, filepath.Ext(sessionPath))
+	return filepath.Join(base, "subagents")
+}
+
+func loadSessionTurns(sessionPath string) ([]turn, error) {
+	f, err := os.Open(sessionPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	turns, err := parseTurnsFromJSONL(f)
+	if err != nil {
+		return nil, err
+	}
+
+	dir := sidechainsDir(sessionPath)
+	for i := range turns {
+		if turns[i].sidechainID != "" {
+			p := filepath.Join(dir, "agent-"+turns[i].sidechainID+".jsonl")
+			if _, err := os.Stat(p); err == nil {
+				turns[i].sidechainPath = p
+			}
+		}
+	}
+
+	return turns, nil
+}
+
+func loadSidechainTurns(path string) ([]turn, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return parseTurnsFromJSONL(f)
 }
 
 // extractUserTurns parses user event and produces zero or more turns.
@@ -202,13 +274,14 @@ func extractToolTurn(blockMap map[string]interface{}) *turn {
 	snippet := toolSnippet(name, input)
 	body := name + " " + snippet
 
-	// Store the full input for expansion
 	inputMap := make(map[string]interface{})
 	if inputVal, ok := input.(map[string]interface{}); ok {
 		inputMap = inputVal
 	}
 
-	return &turn{kind: "tool", body: body, input: inputMap}
+	toolUseID, _ := blockMap["id"].(string)
+
+	return &turn{kind: "tool", body: body, input: inputMap, toolUseID: toolUseID}
 }
 
 // toolSnippet extracts a short snippet from tool input based on the tool name.

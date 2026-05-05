@@ -93,6 +93,9 @@ type model struct {
 	// the normal view. Any key dismisses it.
 	showHelp bool
 
+	// Sidechain turns loaded on demand when expanding Agent tool turns
+	sidechainTurns map[int][]turn
+
 	// FTS5 search index (nil until first search; fallback to linear scan if nil)
 	index *Index
 }
@@ -175,15 +178,9 @@ func loadSessionsCmd(dir string) tea.Cmd {
 	}
 }
 
-// loadSessionDetailCmd loads the full session JSONL and parses turns
 func loadSessionDetailCmd(path string) tea.Cmd {
 	return func() tea.Msg {
-		f, err := os.Open(path)
-		if err != nil {
-			return sessionDetailLoadedMsg{err: err}
-		}
-		defer f.Close()
-		turns, err := parseTurnsFromJSONL(f)
+		turns, err := loadSessionTurns(path)
 		return sessionDetailLoadedMsg{turns: turns, err: err}
 	}
 }
@@ -364,12 +361,12 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "esc", "h", "left":
-		// Return to list mode (preserve cursor in list)
 		m.mode = modeList
 		m.turns = nil
 		m.cursorDetail = 0
 		m.detailOffset = 0
 		m.expandedTurns = make(map[int]bool)
+		m.sidechainTurns = nil
 		m.showThinking = false
 		m.justCopied = false
 		return m, nil
@@ -404,6 +401,16 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if t.kind == "tool" {
 				fullIdx := m.visibleIndexToFullIndex(m.cursorDetail)
 				m.expandedTurns[fullIdx] = !m.expandedTurns[fullIdx]
+				if m.expandedTurns[fullIdx] && t.sidechainPath != "" {
+					if _, loaded := m.sidechainTurns[fullIdx]; !loaded {
+						if scTurns, err := loadSidechainTurns(t.sidechainPath); err == nil {
+							if m.sidechainTurns == nil {
+								m.sidechainTurns = make(map[int][]turn)
+							}
+							m.sidechainTurns[fullIdx] = scTurns
+						}
+					}
+				}
 			} else {
 				m.flashMsg = "space: cursor is not on a tool turn"
 			}
