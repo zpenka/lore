@@ -301,7 +301,7 @@ func renderDetailFooter(m model) string {
 		copyStatus = "  ✓ copied"
 	}
 	return footerStyle.Render(fmt.Sprintf(
-		" j/k move   g/G top/bottom   space expand   y copy   r run   q/esc/h/← back%s",
+		" j/k move   d/u page   g/G top/bottom   space expand   y copy   r run   q/esc/h/← back%s",
 		copyStatus))
 }
 
@@ -396,7 +396,7 @@ func renderFooter(m model) string {
 			return footerStyle.Render(fmt.Sprintf(" fuzzy filter: %s   j/k · enter open · esc clear   q quit", m.filterText))
 		}
 	}
-	return footerStyle.Render(" j/k move   enter open   / search   p filter project   b filter branch   f fuzzy   P project view   S usage stats   g/G top/bottom   q quit")
+	return footerStyle.Render(" j/k move   d/u page   enter open   / search   p filter project   b filter branch   f fuzzy   P project view   S usage stats   g/G top/bottom   q quit")
 }
 
 // padTrunc trims s to max display columns or right-pads it to fit.
@@ -635,6 +635,7 @@ func renderHelpOverlay(m model) string {
  │                                                                           │
  │  Navigation:                                                              │
  │    j/k, ↑/↓     Move cursor                                              │
+ │    d/u          Half-page down/up                                        │
  │    g/G          Jump to top/bottom                                       │
  │    enter, l, →  Open the highlighted session                            │
  │                                                                           │
@@ -660,6 +661,7 @@ func renderHelpOverlay(m model) string {
  │                                                                            │
  │  Navigation:                                                               │
  │    j/k, ↑/↓     Scroll through turns                                      │
+ │    d/u          Half-page down/up                                          │
  │    g/G          Jump to top/bottom                                        │
  │                                                                            │
  │  Turn Actions:                                                             │
@@ -687,6 +689,7 @@ func renderHelpOverlay(m model) string {
  │                                                                            │
  │  Search Results:                                                           │
  │    j/k, ↑/↓     Move through results (sorted by hit count)               │
+ │    d/u          Half-page down/up                                          │
  │    g/G          Jump to top/bottom                                        │
  │    enter        Open the selected session in detail                       │
  │    /            Re-search (edit query)                                    │
@@ -702,6 +705,7 @@ func renderHelpOverlay(m model) string {
  │                                                                            │
  │  Navigation:                                                               │
  │    j/k, ↑/↓     Move within the project's sessions                        │
+ │    d/u          Half-page down/up                                          │
  │    g/G          Jump to top/bottom                                        │
  │    enter        Open session detail                                       │
  │                                                                            │

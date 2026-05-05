@@ -283,6 +283,30 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor--
 		}
 		m = m.clampListOffsetNow()
+	case "d":
+		if !m.loading && len(m.visibleSessions) > 0 {
+			half := m.bodyHeight() / 2
+			if half < 1 {
+				half = 1
+			}
+			m.cursor += half
+			if m.cursor >= len(m.visibleSessions) {
+				m.cursor = len(m.visibleSessions) - 1
+			}
+		}
+		m = m.clampListOffsetNow()
+	case "u":
+		if !m.loading {
+			half := m.bodyHeight() / 2
+			if half < 1 {
+				half = 1
+			}
+			m.cursor -= half
+			if m.cursor < 0 {
+				m.cursor = 0
+			}
+		}
+		m = m.clampListOffsetNow()
 	case "g":
 		if !m.loading {
 			m.cursor = 0
@@ -377,6 +401,32 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		if m.cursorDetail > 0 {
 			m.cursorDetail--
+		}
+		m.justCopied = false
+		m = m.clampDetailOffsetNow()
+	case "d":
+		visible := m.visibleTurns()
+		half := m.bodyHeight() / 2
+		if half < 1 {
+			half = 1
+		}
+		m.cursorDetail += half
+		if m.cursorDetail >= len(visible) {
+			m.cursorDetail = len(visible) - 1
+		}
+		if m.cursorDetail < 0 {
+			m.cursorDetail = 0
+		}
+		m.justCopied = false
+		m = m.clampDetailOffsetNow()
+	case "u":
+		half := m.bodyHeight() / 2
+		if half < 1 {
+			half = 1
+		}
+		m.cursorDetail -= half
+		if m.cursorDetail < 0 {
+			m.cursorDetail = 0
 		}
 		m.justCopied = false
 		m = m.clampDetailOffsetNow()
@@ -531,6 +581,28 @@ func (m model) handleProjectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.projectCursor--
 		}
 		m = m.clampProjectOffsetNow()
+	case "d":
+		if len(m.projectSessions) > 0 {
+			half := m.bodyHeight() / 2
+			if half < 1 {
+				half = 1
+			}
+			m.projectCursor += half
+			if m.projectCursor >= len(m.projectSessions) {
+				m.projectCursor = len(m.projectSessions) - 1
+			}
+		}
+		m = m.clampProjectOffsetNow()
+	case "u":
+		half := m.bodyHeight() / 2
+		if half < 1 {
+			half = 1
+		}
+		m.projectCursor -= half
+		if m.projectCursor < 0 {
+			m.projectCursor = 0
+		}
+		m = m.clampProjectOffsetNow()
 	case "g":
 		m.projectCursor = 0
 		m = m.clampProjectOffsetNow()
@@ -561,6 +633,28 @@ func (m model) handleSearchResultsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "k", "up":
 		if m.searchCursor > 0 {
 			m.searchCursor--
+		}
+		m = m.clampSearchOffsetNow()
+	case "d":
+		if len(m.searchResults) > 0 {
+			half := m.bodyHeight() / 2
+			if half < 1 {
+				half = 1
+			}
+			m.searchCursor += half
+			if m.searchCursor >= len(m.searchResults) {
+				m.searchCursor = len(m.searchResults) - 1
+			}
+		}
+		m = m.clampSearchOffsetNow()
+	case "u":
+		half := m.bodyHeight() / 2
+		if half < 1 {
+			half = 1
+		}
+		m.searchCursor -= half
+		if m.searchCursor < 0 {
+			m.searchCursor = 0
 		}
 		m = m.clampSearchOffsetNow()
 	case "g":
