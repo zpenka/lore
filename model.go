@@ -500,6 +500,12 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.flashMsg = "r: cursor is not on a user turn"
 			}
 		}
+	case "/":
+		m.mode = modeSearch
+		m.searchMode = searchModeEntry
+		m.searchQuery = ""
+		m.searchResults = nil
+		m.searchCursor = 0
 	}
 	return m, nil
 }
@@ -564,7 +570,7 @@ func (m model) handleSearchEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleProjectKey handles keys in project mode
 func (m model) handleProjectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "esc":
+	case "q", "esc", "h", "left":
 		m.mode = modeList
 		m.projectCWD = ""
 		m.projectSessions = nil
@@ -674,7 +680,7 @@ func (m model) handleSearchResultsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "/":
 		m.searchMode = searchModeEntry
-	case "esc":
+	case "q", "esc", "h", "left":
 		m.mode = modeList
 		m.searchQuery = ""
 		m.searchResults = nil
@@ -694,7 +700,7 @@ func (m model) handleRerunKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		return m, m.rerunFn(m.rerunPrompt, m.rerunCWD)
-	case "esc", "q":
+	case "esc", "q", "h", "left":
 		m.mode = modeDetail
 		m.rerunPrompt = ""
 		m.rerunCWD = ""
@@ -706,7 +712,7 @@ func (m model) handleRerunKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // handleStatsKey handles keys in stats mode.
 func (m model) handleStatsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "esc":
+	case "q", "esc", "h", "left":
 		m.mode = modeList
 		return m, nil
 	case "j", "down":
