@@ -50,6 +50,22 @@ func TestView_HeaderShowsCounts(t *testing.T) {
 	}
 }
 
+func TestView_RowsShowQueryPreview(t *testing.T) {
+	now := time.Now()
+	m := loadedModelWith(
+		Session{Project: "grit", Branch: "main", Query: "fix the login bug", Timestamp: now},
+		Session{Project: "dotfiles", Branch: "fix/zsh", Query: "review this MR", Timestamp: now},
+	)
+	m.width = 120
+	out := m.View()
+	if !strings.Contains(out, "fix the login bug") {
+		t.Errorf("list view should show query preview 'fix the login bug':\n%s", out)
+	}
+	if !strings.Contains(out, "review this MR") {
+		t.Errorf("list view should show query preview 'review this MR':\n%s", out)
+	}
+}
+
 func TestView_RowsShowSessionFields(t *testing.T) {
 	now := time.Now()
 	m := loadedModelWith(
@@ -336,41 +352,24 @@ func TestDetailView_RenderThinkingMarker(t *testing.T) {
 	}
 }
 
-func TestDetailView_DetailFooter_WithThinkingHidden(t *testing.T) {
+func TestDetailView_DetailFooter_NoThinkingToggle(t *testing.T) {
 	m := newModel("/d")
 	m.mode = modeDetail
 	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
 	m.turns = []turn{{kind: "user", body: "msg"}}
-	m.showThinking = false
 	m.justCopied = false
 	m.width = 100
 	m.height = 40
 
 	out := m.View()
-	if !strings.Contains(out, "thinking") {
-		t.Errorf("footer should mention 'thinking': %s", out)
+	if strings.Contains(out, "thinking") {
+		t.Errorf("footer should not mention thinking (content is redacted in session files): %s", out)
 	}
 	if !strings.Contains(out, "expand") {
 		t.Errorf("footer should mention 'expand': %s", out)
 	}
 	if !strings.Contains(out, "copy") {
 		t.Errorf("footer should mention 'copy': %s", out)
-	}
-}
-
-func TestDetailView_DetailFooter_WithThinkingShown(t *testing.T) {
-	m := newModel("/d")
-	m.mode = modeDetail
-	m.detailSession = Session{Slug: "test", Project: "p", Branch: "b", Timestamp: timeFromString("2026-05-01T14:30:00Z")}
-	m.turns = []turn{{kind: "user", body: "msg"}}
-	m.showThinking = true
-	m.justCopied = false
-	m.width = 100
-	m.height = 40
-
-	out := m.View()
-	if !strings.Contains(out, "hide thinking") {
-		t.Errorf("footer should say 'hide thinking' when shown: %s", out)
 	}
 }
 

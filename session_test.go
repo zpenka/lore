@@ -166,6 +166,39 @@ func writeSidechain(t *testing.T, root, projectDir, sessionID, filename, content
 	}
 }
 
+func TestParseSessionMetadata_ExtractsQuery_StringContent(t *testing.T) {
+	transcript := `{"type":"user","sessionId":"q1","timestamp":"2026-05-01T10:00:00Z","cwd":"/proj","gitBranch":"main","message":{"content":"can we fix the login bug?"}}`
+	got, err := parseSessionMetadata(strings.NewReader(transcript))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Query != "can we fix the login bug?" {
+		t.Errorf("Query = %q, want %q", got.Query, "can we fix the login bug?")
+	}
+}
+
+func TestParseSessionMetadata_ExtractsQuery_ArrayContent(t *testing.T) {
+	transcript := `{"type":"user","sessionId":"q2","timestamp":"2026-05-01T10:00:00Z","cwd":"/proj","gitBranch":"main","message":{"content":[{"type":"text","text":"review this MR please"}]}}`
+	got, err := parseSessionMetadata(strings.NewReader(transcript))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Query != "review this MR please" {
+		t.Errorf("Query = %q, want %q", got.Query, "review this MR please")
+	}
+}
+
+func TestParseSessionMetadata_Query_EmptyWhenNoMessage(t *testing.T) {
+	transcript := `{"type":"user","sessionId":"q3","timestamp":"2026-05-01T10:00:00Z","cwd":"/proj","gitBranch":"main"}`
+	got, err := parseSessionMetadata(strings.NewReader(transcript))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Query != "" {
+		t.Errorf("Query = %q, want empty", got.Query)
+	}
+}
+
 func userEventLine(id, ts, cwd, branch, slug string) string {
 	return fmt.Sprintf(
 		`{"type":"user","sessionId":%q,"timestamp":%q,"cwd":%q,"gitBranch":%q,"slug":%q}`,

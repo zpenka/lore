@@ -32,10 +32,13 @@ func TestDetailFooter_AdvertisesAllKeys(t *testing.T) {
 	m.height = 25
 
 	out := m.View()
-	for _, want := range []string{"j/k", "space", "t ", "y ", "r ", "g/G", "esc"} {
+	for _, want := range []string{"j/k", "space", "y ", "r ", "g/G", "esc"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("detail footer missing %q:\n%s", want, out)
 		}
+	}
+	if strings.Contains(out, "thinking") {
+		t.Errorf("detail footer should not advertise thinking toggle (content is redacted in session files):\n%s", out)
 	}
 }
 
