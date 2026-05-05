@@ -191,6 +191,40 @@ func TestModel_ProjectMode_EnterOpensDetail(t *testing.T) {
 	}
 }
 
+func TestModel_ProjectMode_HExitsToList(t *testing.T) {
+	now := time.Now()
+	m := loadedModelWith(
+		Session{ID: "a", CWD: "/p", Project: "p", Branch: "main", Slug: "s1", Timestamp: now},
+	)
+	m.mode = modeProject
+	m.projectCWD = "/p"
+	m.projectSessions = []Session{}
+	m.projectCursor = 0
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	nm := next.(model)
+	if nm.mode != modeList {
+		t.Errorf("after 'h' in project mode: mode = %d, want modeList (%d)", nm.mode, modeList)
+	}
+}
+
+func TestModel_ProjectMode_LeftExitsToList(t *testing.T) {
+	now := time.Now()
+	m := loadedModelWith(
+		Session{ID: "a", CWD: "/p", Project: "p", Branch: "main", Slug: "s1", Timestamp: now},
+	)
+	m.mode = modeProject
+	m.projectCWD = "/p"
+	m.projectSessions = []Session{}
+	m.projectCursor = 0
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	nm := next.(model)
+	if nm.mode != modeList {
+		t.Errorf("after 'left' in project mode: mode = %d, want modeList (%d)", nm.mode, modeList)
+	}
+}
+
 func TestRenderProjectView_Header(t *testing.T) {
 	now := time.Now()
 	m := loadedModelWith(

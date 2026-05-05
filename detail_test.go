@@ -998,6 +998,26 @@ func TestModel_DetailMode_SpaceResetsJustCopied(t *testing.T) {
 	}
 }
 
+func TestModel_Detail_SlashEntersSearch(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeDetail
+	m.turns = []turn{{kind: "user", body: "hello"}}
+	m.cursorDetail = 0
+	m.expandedTurns = make(map[int]bool)
+
+	next, _ := m.Update(keyMsg("/"))
+	nm := next.(model)
+	if nm.mode != modeSearch {
+		t.Errorf("after '/' in detail: mode = %d, want %d (modeSearch)", nm.mode, modeSearch)
+	}
+	if nm.searchMode != searchModeEntry {
+		t.Errorf("after '/' in detail: searchMode = %d, want %d (entry)", nm.searchMode, searchModeEntry)
+	}
+	if nm.searchQuery != "" {
+		t.Errorf("after '/' in detail: searchQuery = %q, want ''", nm.searchQuery)
+	}
+}
+
 // Helper for tests
 
 func timeFromString(s string) time.Time {
