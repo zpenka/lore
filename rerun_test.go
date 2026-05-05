@@ -49,6 +49,24 @@ func rerunModel(rerunErr error) model {
 	return m
 }
 
+func TestModel_RerunMode_HReturnsToDetail(t *testing.T) {
+	m := rerunModel(nil)
+	next, _ := m.Update(keyMsg("h"))
+	nm := next.(model)
+	if nm.mode != modeDetail {
+		t.Errorf("after 'h' in rerun mode: mode = %d, want modeDetail (%d)", nm.mode, modeDetail)
+	}
+}
+
+func TestModel_RerunMode_LeftReturnsToDetail(t *testing.T) {
+	m := rerunModel(nil)
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	nm := next.(model)
+	if nm.mode != modeDetail {
+		t.Errorf("after 'left' in rerun mode: mode = %d, want modeDetail (%d)", nm.mode, modeDetail)
+	}
+}
+
 // TestRerunDoneMsg_Success_ReturnsToList checks that a successful re-run
 // (err == nil) moves the model back to modeList and returns a non-nil cmd
 // (the loadSessionsCmd reload).

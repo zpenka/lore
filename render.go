@@ -669,7 +669,8 @@ func renderHelpOverlay(m model) string {
  │    y             Copy the nearest user prompt to clipboard                │
  │    r             Enter re-run mode with the selected user prompt          │
  │                                                                            │
- │  Display:                                                                  │
+ │  Other:                                                                    │
+ │    /             Enter full-text search                                   │
  │    ?             Show this help overlay                                   │
  │                                                                            │
  │  Return to List:                                                           │
@@ -693,7 +694,7 @@ func renderHelpOverlay(m model) string {
  │    g/G          Jump to top/bottom                                        │
  │    enter        Open the selected session in detail                       │
  │    /            Re-search (edit query)                                    │
- │    esc          Back to list                                              │
+ │    esc, q, h, ← Back to list                                              │
  │    ?            Show this help overlay                                    │
  │                                                                            │
  └────────────────────────────────────────────────────────────────────────┘
@@ -710,7 +711,7 @@ func renderHelpOverlay(m model) string {
  │    enter        Open session detail                                       │
  │                                                                            │
  │  Return to List:                                                           │
- │    esc, q       Back to session list                                      │
+ │    esc, q, h, ← Back to session list                                      │
  │    ?            Show this help overlay                                    │
  │                                                                            │
  │  Sessions are grouped by branch (latest branch first).                    │
@@ -725,7 +726,7 @@ func renderHelpOverlay(m model) string {
  │  Actions:                                                                  │
  │    enter        Spawn 'claude' with the chosen prompt                     │
  │                 (subprocess owns the TTY; lore exits cleanly on return)    │
- │    esc, q       Cancel and return to detail view                          │
+ │    esc, q, h, ← Cancel and return to detail view                          │
  │    ?            Show this help overlay                                    │
  │                                                                            │
  └────────────────────────────────────────────────────────────────────────┘
@@ -744,7 +745,7 @@ func renderHelpOverlay(m model) string {
  │  Cost is an estimate based on published per-token pricing.                 │
  │                                                                            │
  │  Return to List:                                                           │
- │    esc, q       Back to session list                                      │
+ │    esc, q, h, ← Back to session list                                      │
  │    ?            Show this help overlay                                    │
  │                                                                            │
  └────────────────────────────────────────────────────────────────────────┘

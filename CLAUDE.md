@@ -166,17 +166,18 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `space`: Expand or collapse a tool turn (the cursor must be on one). Agent turns with sidechains load the sub-agent conversation inline.
 - `y`: Copy the user prompt at-or-before the cursor to the clipboard.
 - `r`: Re-run with the current user prompt (enters re-run mode).
+- `/`: Enter full-text search.
 - `esc` / `q` / `h` / `←`: Back to list.
 
 **Search mode** (`modeSearch`):
 - Entry: type to build query, `enter` to run, `esc` to cancel.
-- Results: `j` / `k`, `d` / `u`, `g` / `G`, `enter` to open, `/` to edit query, `esc` back.
+- Results: `j` / `k`, `d` / `u`, `g` / `G`, `enter` to open, `/` to edit query, `esc` / `q` / `h` / `←` back.
 
-**Project mode** (`modeProject`): `j` / `k`, `d` / `u`, `g` / `G`, `enter`, `esc` / `q`. Sessions are grouped by branch with the latest branch first.
+**Project mode** (`modeProject`): `j` / `k`, `d` / `u`, `g` / `G`, `enter`, `esc` / `q` / `h` / `←`. Sessions are grouped by branch with the latest branch first.
 
-**Re-run mode** (`modeRerun`): `enter` to spawn `claude` with the chosen prompt and CWD (lore returns to the session list when `claude` exits); `esc` / `q` to cancel and return to detail.
+**Re-run mode** (`modeRerun`): `enter` to spawn `claude` with the chosen prompt and CWD (lore returns to the session list when `claude` exits); `esc` / `q` / `h` / `←` to cancel and return to detail.
 
-**Stats mode** (`modeStats`): `j` / `k`, `g` / `G` to navigate the per-session table; `esc` / `q` to return to the list. Columns: project · branch · model · input tokens · output tokens · estimated cost. Token counts use `k` / `M` suffixes; cost is computed from a built-in pricing table for Opus / Sonnet / Haiku families and shown as `--` for unknown models.
+**Stats mode** (`modeStats`): `j` / `k`, `g` / `G` to navigate the per-session table; `esc` / `q` / `h` / `←` to return to the list. Columns: project · branch · model · input tokens · output tokens · estimated cost. Token counts use `k` / `M` suffixes; cost is computed from a built-in pricing table for Opus / Sonnet / Haiku families and shown as `--` for unknown models.
 
 ### Testing Strategy
 

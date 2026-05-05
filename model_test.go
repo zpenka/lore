@@ -1177,6 +1177,78 @@ func TestModel_Stats_KBounded(t *testing.T) {
 	}
 }
 
+func TestModel_SearchResults_QReturnsToList(t *testing.T) {
+	tmpdir := t.TempDir()
+	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
+`)
+	m := loadedModelWith(
+		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+	)
+	m.width = 100
+
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(model)
+
+	next, _ = m.Update(keyMsg("q"))
+	m = next.(model)
+	if m.mode != modeList {
+		t.Errorf("after 'q' in search results: mode = %d, want %d (modeList)", m.mode, modeList)
+	}
+}
+
+func TestModel_SearchResults_HReturnsToList(t *testing.T) {
+	tmpdir := t.TempDir()
+	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
+`)
+	m := loadedModelWith(
+		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+	)
+	m.width = 100
+
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("x"))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(model)
+
+	next, _ = m.Update(keyMsg("h"))
+	m = next.(model)
+	if m.mode != modeList {
+		t.Errorf("after 'h' in search results: mode = %d, want %d (modeList)", m.mode, modeList)
+	}
+}
+
+func TestModel_SearchResults_LeftReturnsToList(t *testing.T) {
+	tmpdir := t.TempDir()
+	session1 := writeTestSessionForModel(t, tmpdir, "sess1.jsonl", `
+{"type":"user","sessionId":"1","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"s1","message":{"content":"hello"}}
+`)
+	m := loadedModelWith(
+		Session{ID: "1", Slug: "s1", Path: session1, Project: "p1", Branch: "b1", Timestamp: timeFromString("2026-05-01T10:00:00Z")},
+	)
+	m.width = 100
+
+	next, _ := m.Update(keyMsg("/"))
+	m = next.(model)
+	next, _ = m.Update(keyMsg("x"))
+	m = next.(model)
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(model)
+
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m = next.(model)
+	if m.mode != modeList {
+		t.Errorf("after 'left' in search results: mode = %d, want %d (modeList)", m.mode, modeList)
+	}
+}
+
 func TestModel_Detail_PressH_InFilterEntry_TypesH(t *testing.T) {
 	// 'h' while in filter entry (list mode, filterMode active) should append
 	// to filterText, not go back.

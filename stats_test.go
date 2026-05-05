@@ -3,6 +3,8 @@ package lore
 import (
 	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ----- parseSessionStats tests -----
@@ -172,6 +174,32 @@ func TestEstimateCost_EmptyModel_Zero(t *testing.T) {
 }
 
 // ----- formatTokenCount tests -----
+
+func TestModel_StatsMode_HReturnsToList(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeStats
+	m.statsData = []statsRow{{Session: Session{ID: "a"}}}
+	m.statsCursor = 0
+
+	next, _ := m.Update(keyMsg("h"))
+	nm := next.(model)
+	if nm.mode != modeList {
+		t.Errorf("after 'h' in stats mode: mode = %d, want modeList (%d)", nm.mode, modeList)
+	}
+}
+
+func TestModel_StatsMode_LeftReturnsToList(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeStats
+	m.statsData = []statsRow{{Session: Session{ID: "a"}}}
+	m.statsCursor = 0
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	nm := next.(model)
+	if nm.mode != modeList {
+		t.Errorf("after 'left' in stats mode: mode = %d, want modeList (%d)", nm.mode, modeList)
+	}
+}
 
 func TestFormatTokenCount(t *testing.T) {
 	tests := []struct {

@@ -185,7 +185,7 @@ asst   │ ▸ Write /root/.claude/plans/hey-so-i-want-twinkly-aho.md
  grit        claude/auth-fix        why-does-blame-skip-merges  1 hit
    "...the blame walker doesn't refresh after a rebase..."
 ─────────────────────────────────────────────────────────────────────────────
- enter open at hit   / new search   p filter project   esc back
+ enter open at hit   / new search   p filter project   esc/q/h/← back
 ```
 
 - v1: linear scan of JSONL files, only `user` and `text`/`assistant` content.
@@ -351,8 +351,9 @@ Smaller improvements identified during the 0.4.0 code review:
   Agent turns with sidechains show a `⧑` prefix indicator.
 - ~~**Re-enter list after re-run.**~~ ✅ Done — lore now returns to the
   session list when `claude` exits and surfaces spawn errors via flash message.
-- ~~**`h` / `←` back-navigation in detail mode.**~~ ✅ Done — both keys
-  now go back from detail to list.
+- ~~**`h` / `←` back-navigation in detail mode.**~~ ✅ Done — expanded to
+  all sub-views (detail, search results, project, rerun, stats) so that
+  `q` / `esc` / `h` / `←` consistently go back everywhere.
 - ~~**Turn position indicator.**~~ ✅ Done — header shows "turn N/M".
 - ~~**Configurable projects dir.**~~ ✅ Done — `--dir` flag (highest
   precedence) and `LORE_PROJECTS_DIR` env var both override the default
