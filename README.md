@@ -31,11 +31,11 @@ The FTS5 search index is cached under the platform-appropriate user cache dir (e
 Press `?` in any mode for the full keymap. Highlights:
 
 - **List**: `j`/`k` move, `d`/`u` half-page, `g`/`G` jump, `enter` open, `p`/`b` filter project/branch, `f` fuzzy filter, `P` project view, `/` search, `S` usage stats, `q` quit.
-- **Detail**: `d`/`u` half-page, `space` expand a tool turn (Agent turns with sidechains load the sub-conversation inline), `y` copy the nearest user prompt, `r` re-run that prompt, `esc`/`h`/`←` back.
-- **Search**: type → `enter` to run, `j`/`k` or `d`/`u` through hits, `enter` to open.
-- **Project**: `j`/`k`, `d`/`u`, `enter` to open, `esc` back. Sessions are grouped by branch.
-- **Re-run**: `enter` to spawn `claude` with the chosen prompt and CWD; `esc` to cancel.
-- **Stats**: `j`/`k`, `g`/`G` to navigate; `esc`/`q` back. Columns: project · branch · model · input/output tokens · estimated cost.
+- **Detail**: `d`/`u` half-page, `space` expand a tool turn (Agent turns with sidechains load the sub-conversation inline), `y` copy the nearest user prompt, `r` re-run that prompt, `/` search, `esc`/`q`/`h`/`←` back.
+- **Search**: type → `enter` to run, `j`/`k` or `d`/`u` through hits, `enter` to open, `esc`/`q`/`h`/`←` back.
+- **Project**: `j`/`k`, `d`/`u`, `enter` to open, `esc`/`q`/`h`/`←` back. Sessions are grouped by branch.
+- **Re-run**: `enter` to spawn `claude` with the chosen prompt and CWD; `esc`/`q`/`h`/`←` to cancel.
+- **Stats**: `j`/`k`, `g`/`G` to navigate; `esc`/`q`/`h`/`←` back. Columns: project · branch · model · input/output tokens · estimated cost.
 
 ## For contributors
 
