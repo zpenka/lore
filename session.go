@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -37,34 +38,52 @@ type rawUserEvent struct {
 
 // parseSessionMetadata returns metadata extracted from the first "user" event
 // in the JSONL stream. Malformed lines and non-user events preceding the first
-// user event are tolerated. Returns an error if no user event is found.
+// user event are tolerated. System-injected user events (caveats, slash commands)
+// are skipped when looking for the query preview, but metadata (ID, CWD, branch)
+// is taken from the first user event. Returns an error if no user event is found.
 func parseSessionMetadata(r io.Reader) (Session, error) {
-	s := bufio.NewScanner(r)
-	s.Buffer(make([]byte, 64*1024), 16*1024*1024)
-	for s.Scan() {
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
+
+	var sess Session
+	found := false
+
+	for sc.Scan() {
 		var ev rawUserEvent
-		if err := json.Unmarshal(s.Bytes(), &ev); err != nil {
+		if err := json.Unmarshal(sc.Bytes(), &ev); err != nil {
 			continue
 		}
 		if ev.Type != "user" {
 			continue
 		}
-		ts, err := time.Parse(time.RFC3339Nano, ev.Timestamp)
-		if err != nil {
-			return Session{}, err
+
+		if !found {
+			ts, err := time.Parse(time.RFC3339Nano, ev.Timestamp)
+			if err != nil {
+				return Session{}, err
+			}
+			sess = Session{
+				ID:        ev.SessionID,
+				CWD:       ev.CWD,
+				Project:   filepath.Base(ev.CWD),
+				Branch:    ev.GitBranch,
+				Slug:      ev.Slug,
+				Timestamp: ts,
+			}
+			found = true
 		}
-		return Session{
-			ID:        ev.SessionID,
-			CWD:       ev.CWD,
-			Project:   filepath.Base(ev.CWD),
-			Branch:    ev.GitBranch,
-			Slug:      ev.Slug,
-			Query:     extractQuery(ev.Message),
-			Timestamp: ts,
-		}, nil
+
+		q := extractQuery(ev.Message)
+		if q != "" {
+			sess.Query = q
+			return sess, nil
+		}
 	}
-	if err := s.Err(); err != nil {
+	if err := sc.Err(); err != nil {
 		return Session{}, err
+	}
+	if found {
+		return sess, nil
 	}
 	return Session{}, errors.New("no user event found")
 }
@@ -104,6 +123,8 @@ func scanSessions(rootDir string) ([]Session, error) {
 	return sessions, nil
 }
 
+var systemTagRe = regexp.MustCompile(`(?s)<(local-command-caveat|command-name|command-message|command-args|system-reminder)(?:[^>]*)>.*?</(?:local-command-caveat|command-name|command-message|command-args|system-reminder)>`)
+
 func extractQuery(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
@@ -118,7 +139,7 @@ func extractQuery(raw json.RawMessage) string {
 	// Content can be a plain string or an array of content blocks.
 	var s string
 	if err := json.Unmarshal(msg.Content, &s); err == nil {
-		return collapseWhitespace(s)
+		return collapseWhitespace(stripSystemTags(s))
 	}
 
 	var blocks []struct {
@@ -129,12 +150,19 @@ func extractQuery(raw json.RawMessage) string {
 		var parts []string
 		for _, b := range blocks {
 			if b.Type == "text" && b.Text != "" {
-				parts = append(parts, b.Text)
+				cleaned := collapseWhitespace(stripSystemTags(b.Text))
+				if cleaned != "" {
+					parts = append(parts, cleaned)
+				}
 			}
 		}
 		return collapseWhitespace(strings.Join(parts, " "))
 	}
 	return ""
+}
+
+func stripSystemTags(s string) string {
+	return systemTagRe.ReplaceAllString(s, "")
 }
 
 func collapseWhitespace(s string) string {
