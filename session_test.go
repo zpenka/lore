@@ -70,7 +70,7 @@ func TestScanSessions_SortsNewestFirst(t *testing.T) {
 	writeSession(t, dir, "-proj-b", "mid.jsonl",
 		userEventLine("mid", "2026-04-20T10:00:00Z", "/proj-b", "main", "mid-work"))
 
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("scanSessions: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestScanSessions_SortsNewestFirst(t *testing.T) {
 
 func TestScanSessions_EmptyDir(t *testing.T) {
 	dir := t.TempDir()
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestScanSessions_SkipsBadFiles(t *testing.T) {
 	writeSession(t, dir, "-proj", "no-user.jsonl", `{"type":"queue-operation"}`)
 	writeSession(t, dir, "-proj", "readme.txt", "hello")
 
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestScanSessions_RecordsAbsolutePath(t *testing.T) {
 	writeSession(t, dir, "-proj", "s.jsonl",
 		userEventLine("s", "2026-05-01T10:00:00Z", "/proj", "main", "work"))
 
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("scanSessions: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestScanSessions_ExcludesSidechains(t *testing.T) {
 	writeSidechain(t, dir, "-proj", "abc-123", "agent-xyz.jsonl",
 		sidechainEventLine("xyz", "2026-05-01T10:01:00Z", "/proj", "main", "sidechain-work"))
 
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("scanSessions: %v", err)
 	}
@@ -387,5 +387,55 @@ func TestExtractQuery_DirectInputs(t *testing.T) {
 				t.Errorf("extractQuery(%q) = %q, want %q", tt.raw, got, tt.want)
 			}
 		})
+	}
+}
+
+// ----- skipped-file warnings (1F) -----
+
+// scanSessions should report skipped files via a warnings slice so the
+// list view can surface what was lost. Currently it returns (sessions, err);
+// after 1F it should return (sessions, warnings, err).
+func TestScanSessions_ReportsWarningsForSkippedFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeSession(t, dir, "-proj", "good.jsonl",
+		userEventLine("good", "2026-05-01T10:00:00Z", "/proj", "main", "good-work"))
+	writeSession(t, dir, "-proj", "no-user.jsonl", `{"type":"queue-operation"}`)
+	writeSession(t, dir, "-proj", "malformed.jsonl", "not json at all\n")
+
+	sessions, warnings, err := scanSessions(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(sessions) != 1 || sessions[0].ID != "good" {
+		t.Fatalf("got %d sessions, want 1 with ID=good", len(sessions))
+	}
+	if len(warnings) < 2 {
+		t.Errorf("expected at least 2 warnings (no-user.jsonl, malformed.jsonl), got %d: %v", len(warnings), warnings)
+	}
+	joined := strings.Join(warnings, "\n")
+	if !strings.Contains(joined, "no-user.jsonl") {
+		t.Errorf("warnings should mention no-user.jsonl: %v", warnings)
+	}
+	if !strings.Contains(joined, "malformed.jsonl") {
+		t.Errorf("warnings should mention malformed.jsonl: %v", warnings)
+	}
+}
+
+func TestScanSessions_NoWarningsWhenAllValid(t *testing.T) {
+	dir := t.TempDir()
+	writeSession(t, dir, "-proj", "a.jsonl",
+		userEventLine("a", "2026-05-01T10:00:00Z", "/proj", "main", "work"))
+	writeSession(t, dir, "-proj", "b.jsonl",
+		userEventLine("b", "2026-05-01T11:00:00Z", "/proj", "main", "work2"))
+
+	sessions, warnings, err := scanSessions(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(sessions) != 2 {
+		t.Fatalf("got %d sessions, want 2", len(sessions))
+	}
+	if len(warnings) != 0 {
+		t.Errorf("expected no warnings for valid files, got %d: %v", len(warnings), warnings)
 	}
 }

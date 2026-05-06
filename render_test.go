@@ -1140,3 +1140,26 @@ func TestRerunView_HeaderFollowedByDivider(t *testing.T) {
 		t.Errorf("second line should be the divider, got: %q", divider)
 	}
 }
+
+// ----- skipped-file footer count (1F) -----
+
+func TestListHeader_ShowsSkippedCountWhenWarningsPresent(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "p", Slug: "s", Timestamp: time.Now()},
+	)
+	m.warnings = []string{"file1.jsonl: bad", "file2.jsonl: malformed", "file3.jsonl: no user event"}
+	out := renderListHeader(m)
+	if !strings.Contains(out, "3 skipped") {
+		t.Errorf("list header with 3 warnings should mention '3 skipped', got: %q", out)
+	}
+}
+
+func TestListHeader_OmitsSkippedWhenNoWarnings(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "p", Slug: "s", Timestamp: time.Now()},
+	)
+	out := renderListHeader(m)
+	if strings.Contains(out, "skipped") {
+		t.Errorf("list header without warnings should not mention 'skipped', got: %q", out)
+	}
+}

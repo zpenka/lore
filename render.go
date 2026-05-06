@@ -331,10 +331,15 @@ func renderDetailFooter(m model) string {
 
 func renderListHeader(m model) string {
 	nProjects := countProjects(m.sessions)
+	skipped := ""
+	if n := len(m.warnings); n > 0 {
+		skipped = fmt.Sprintf("   (%d skipped)", n)
+	}
 	return headerStyle.Render(fmt.Sprintf(
-		" lore · %d session%s across %d project%s",
+		" lore · %d session%s across %d project%s%s",
 		len(m.sessions), plural(len(m.sessions)),
 		nProjects, plural(nProjects),
+		skipped,
 	))
 }
 
