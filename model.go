@@ -789,73 +789,21 @@ func (m model) handleFilterEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) applyFilter() {
-	filterText := strings.TrimSpace(m.filterText)
-
-	// Empty filter shows all sessions
-	if filterText == "" {
+	if strings.TrimSpace(m.filterText) == "" {
 		m.visibleSessions = m.sessions
 		return
 	}
-
 	switch m.filterMode {
 	case filterModeProject:
-		// Build candidate list of project names
-		var projects []string
-		for _, s := range m.sessions {
-			projects = append(projects, s.Project)
-		}
-		// Get fuzzy-ranked projects
-		rankedProjects := fuzzyFilterCandidates(filterText, projects)
-		// Map back to sessions in fuzzy rank order
-		projectMap := make(map[string]bool)
-		for _, p := range rankedProjects {
-			projectMap[p] = true
-		}
-		m.visibleSessions = nil
-		for _, s := range m.sessions {
-			if projectMap[s.Project] {
-				m.visibleSessions = append(m.visibleSessions, s)
-			}
-		}
+		m.visibleSessions = fuzzyFilterSessions(m.filterText,
+			func(s Session) string { return s.Project }, m.sessions)
 	case filterModeBranch:
-		// Build candidate list of branch names
-		var branches []string
-		for _, s := range m.sessions {
-			branches = append(branches, s.Branch)
-		}
-		// Get fuzzy-ranked branches
-		rankedBranches := fuzzyFilterCandidates(filterText, branches)
-		// Map back to sessions in fuzzy rank order
-		branchMap := make(map[string]bool)
-		for _, b := range rankedBranches {
-			branchMap[b] = true
-		}
-		m.visibleSessions = nil
-		for _, s := range m.sessions {
-			if branchMap[s.Branch] {
-				m.visibleSessions = append(m.visibleSessions, s)
-			}
-		}
+		m.visibleSessions = fuzzyFilterSessions(m.filterText,
+			func(s Session) string { return s.Branch }, m.sessions)
 	case filterModeFuzzy:
-		// Build candidates by concatenating slug + project + branch per session.
-		// fuzzy.Find matches against each candidate string; sessions whose
-		// combined field string matches are included.
-		candidates := make([]string, len(m.sessions))
-		for i, s := range m.sessions {
-			candidates[i] = s.Slug + " " + s.Project + " " + s.Branch
-		}
-		matched := fuzzyFilterCandidates(filterText, candidates)
-		// Build a set of matched composite strings for O(1) lookup.
-		matchSet := make(map[string]bool, len(matched))
-		for _, c := range matched {
-			matchSet[c] = true
-		}
-		m.visibleSessions = nil
-		for i, s := range m.sessions {
-			if matchSet[candidates[i]] {
-				m.visibleSessions = append(m.visibleSessions, s)
-			}
-		}
+		m.visibleSessions = fuzzyFilterSessions(m.filterText,
+			func(s Session) string { return s.Slug + " " + s.Project + " " + s.Branch },
+			m.sessions)
 	default:
 		m.visibleSessions = m.sessions
 	}
