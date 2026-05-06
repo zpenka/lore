@@ -995,3 +995,148 @@ func TestSearchFooter_EntryMode(t *testing.T) {
 		t.Errorf("search entry footer should include current query:\n%s", out)
 	}
 }
+
+// ----- consistent header chrome (1E) -----
+
+// All per-mode headers must:
+// - exist as a dedicated render*Header function (no inline header inside the
+//   View renderer)
+// - return a single line (no embedded \n)
+// - contain mode-relevant context
+
+func TestListHeader_SingleLine(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "p1", Slug: "s1", CWD: "/x/p1", Timestamp: time.Now()},
+	)
+	out := renderListHeader(m)
+	if out == "" {
+		t.Fatal("renderListHeader returned empty string")
+	}
+	if strings.Contains(out, "\n") {
+		t.Errorf("renderListHeader should be single-line, got: %q", out)
+	}
+	if !strings.Contains(out, "session") {
+		t.Errorf("list header should mention session count, got: %q", out)
+	}
+}
+
+func TestDetailHeader_SingleLine(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "x", Project: "proj", Branch: "main", Timestamp: time.Now()}
+	m.turns = []turn{{kind: "user", body: "hi"}}
+	m.expandedTurns = make(map[int]bool)
+	out := renderDetailHeader(m)
+	if out == "" {
+		t.Fatal("renderDetailHeader returned empty string")
+	}
+	if strings.Contains(out, "\n") {
+		t.Errorf("renderDetailHeader should be single-line, got: %q", out)
+	}
+	if !strings.Contains(out, "proj") {
+		t.Errorf("detail header should include project, got: %q", out)
+	}
+}
+
+func TestSearchHeader_SingleLine_EntryAndResults(t *testing.T) {
+	t.Run("entry mode", func(t *testing.T) {
+		m := newModel("/d")
+		m.mode = modeSearch
+		m.searchMode = searchModeEntry
+		m.searchQuery = "abc"
+		out := renderSearchHeader(m)
+		if out == "" {
+			t.Fatal("renderSearchHeader (entry) returned empty string")
+		}
+		if strings.Contains(out, "\n") {
+			t.Errorf("entry header should be single-line, got: %q", out)
+		}
+		if !strings.Contains(out, "abc") {
+			t.Errorf("entry header should echo query, got: %q", out)
+		}
+	})
+	t.Run("results mode", func(t *testing.T) {
+		m := newModel("/d")
+		m.mode = modeSearch
+		m.searchMode = searchModeResults
+		m.searchQuery = "abc"
+		m.searchResults = []SearchHit{
+			{Session: Session{ID: "1", Slug: "s1", Project: "p", Branch: "b", Timestamp: time.Now()}, HitCount: 1, Snippet: "x"},
+		}
+		out := renderSearchHeader(m)
+		if out == "" {
+			t.Fatal("renderSearchHeader (results) returned empty string")
+		}
+		if strings.Contains(out, "\n") {
+			t.Errorf("results header should be single-line, got: %q", out)
+		}
+		if !strings.Contains(out, "abc") {
+			t.Errorf("results header should echo query, got: %q", out)
+		}
+	})
+}
+
+func TestRerunHeader_SingleLine(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeRerun
+	m.detailSession = Session{Slug: "src-slug"}
+	m.rerunPrompt = "hi"
+	m.rerunCWD = "/x"
+	out := renderRerunHeader(m)
+	if out == "" {
+		t.Fatal("renderRerunHeader returned empty string")
+	}
+	if strings.Contains(out, "\n") {
+		t.Errorf("rerun header should be single-line, got: %q", out)
+	}
+	if !strings.Contains(out, "re-run") {
+		t.Errorf("rerun header should mention 're-run', got: %q", out)
+	}
+	if !strings.Contains(out, "src-slug") {
+		t.Errorf("rerun header should include source slug, got: %q", out)
+	}
+}
+
+func TestStatsHeader_SingleLine(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "p", Slug: "s", Timestamp: time.Now()},
+	)
+	m.mode = modeStats
+	m.statsData = []statsRow{}
+	out := renderStatsHeader(m)
+	if out == "" {
+		t.Fatal("renderStatsHeader returned empty string")
+	}
+	if strings.Contains(out, "\n") {
+		t.Errorf("stats header should be single-line, got: %q", out)
+	}
+	if !strings.Contains(out, "usage stats") {
+		t.Errorf("stats header should mention 'usage stats', got: %q", out)
+	}
+}
+
+// Each renderer's full View output must place the header immediately
+// followed by a divider line. We assert this for the modes that previously
+// built their header inline.
+func TestRerunView_HeaderFollowedByDivider(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeRerun
+	m.detailSession = Session{ID: "a", Slug: "test-slug", CWD: "/h"}
+	m.rerunPrompt = "x"
+	m.rerunCWD = "/h"
+	m.width = 80
+	m.height = 40
+	out := m.View()
+	lines := strings.SplitN(out, "\n", 3)
+	if len(lines) < 2 {
+		t.Fatalf("rerun view should have at least 2 lines, got: %q", out)
+	}
+	header := lines[0]
+	divider := lines[1]
+	if !strings.Contains(header, "re-run") {
+		t.Errorf("first line should be the rerun header, got: %q", header)
+	}
+	if !strings.Contains(divider, "─") {
+		t.Errorf("second line should be the divider, got: %q", divider)
+	}
+}
