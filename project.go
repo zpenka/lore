@@ -71,7 +71,12 @@ func projectBodyLines(m model, now time.Time) (lines []string, cursorLine int) {
 			if label == "" {
 				label = sess.Slug
 			}
-			row := fmt.Sprintf("  %s  %s",
+			mark := " "
+			if m.bookmarks[sess.ID] {
+				mark = "★"
+			}
+			row := fmt.Sprintf("  %s %s  %s",
+				mark,
 				sess.Timestamp.Format("15:04"),
 				label,
 			)

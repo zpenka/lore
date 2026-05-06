@@ -103,9 +103,21 @@ type model struct {
 	// that were skipped (unreadable, malformed, no user event). Surfaced
 	// in the list header as "(N skipped)" when non-empty.
 	warnings []string
+
+	// bookmarks holds the currently bookmarked session IDs (toggled with 'm');
+	// bookmarksPath is the JSON file they're persisted to. bookmarkOnly is
+	// the binary "show only bookmarked sessions" filter, toggled with 'M'.
+	bookmarks     map[string]bool
+	bookmarksPath string
+	bookmarkOnly  bool
 }
 
 func newModel(projectsDir string) model {
+	bmPath, _ := bookmarksFile() // best-effort; empty path disables persistence
+	bookmarks, _ := loadBookmarks(bmPath)
+	if bookmarks == nil {
+		bookmarks = map[string]bool{}
+	}
 	return model{
 		projectsDir:   projectsDir,
 		loading:       true,
@@ -113,6 +125,8 @@ func newModel(projectsDir string) model {
 		justCopied:    false,
 		clipboardFn:   copyToClipboard, // Default to real implementation
 		rerunFn:       rerunClaude,     // Default to real implementation
+		bookmarks:     bookmarks,
+		bookmarksPath: bmPath,
 	}
 }
 
@@ -366,6 +380,41 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statsOffset = 0
 			m.mode = modeStats
 		}
+	case "m":
+		if !m.loading && len(m.visibleSessions) > 0 {
+			selected := m.visibleSessions[m.cursor]
+			on := toggleBookmark(m.bookmarks, selected.ID)
+			if on {
+				m.flashMsg = "bookmarked"
+			} else {
+				m.flashMsg = "unbookmarked"
+			}
+			if m.bookmarksPath != "" {
+				_ = saveBookmarks(m.bookmarksPath, m.bookmarks)
+			}
+			// If we're currently filtering to bookmarks-only, recompute
+			// the visible list so an unmarked session disappears.
+			if m.bookmarkOnly {
+				m.applyFilter()
+				if m.cursor >= len(m.visibleSessions) {
+					m.cursor = len(m.visibleSessions) - 1
+				}
+				if m.cursor < 0 {
+					m.cursor = 0
+				}
+			}
+		}
+	case "M":
+		if !m.loading {
+			if !m.bookmarkOnly && len(m.bookmarks) == 0 {
+				m.flashMsg = "no bookmarks yet (press m to mark a session)"
+			} else {
+				m.bookmarkOnly = !m.bookmarkOnly
+				m.applyFilter()
+				m.cursor = 0
+				m.listOffset = 0
+			}
+		}
 	case "enter", "l", "right":
 		// Open session detail
 		if !m.loading && len(m.visibleSessions) > 0 {
@@ -375,11 +424,12 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, loadSessionDetailCmd(selected.Path)
 		}
 	case "esc":
-		// Clear filter and restore full list (only when filter is applied)
-		if m.appliedFilterMode != filterModeNone {
+		// Clear filters and restore full list when any filter is applied.
+		if m.appliedFilterMode != filterModeNone || m.bookmarkOnly {
 			m.filterText = ""
-			m.visibleSessions = m.sessions
 			m.appliedFilterMode = filterModeNone
+			m.bookmarkOnly = false
+			m.applyFilter()
 			m.cursor = 0
 		}
 	}
@@ -513,6 +563,16 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.searchQuery = ""
 		m.searchResults = nil
 		m.searchCursor = 0
+	case "m":
+		on := toggleBookmark(m.bookmarks, m.detailSession.ID)
+		if on {
+			m.flashMsg = "bookmarked"
+		} else {
+			m.flashMsg = "unbookmarked"
+		}
+		if m.bookmarksPath != "" {
+			_ = saveBookmarks(m.bookmarksPath, m.bookmarks)
+		}
 	}
 	return m, nil
 }
@@ -796,24 +856,31 @@ func (m model) handleFilterEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) applyFilter() {
-	if strings.TrimSpace(m.filterText) == "" {
-		m.visibleSessions = m.sessions
-		return
+	sessions := m.sessions
+	if strings.TrimSpace(m.filterText) != "" {
+		switch m.filterMode {
+		case filterModeProject:
+			sessions = fuzzyFilterSessions(m.filterText,
+				func(s Session) string { return s.Project }, sessions)
+		case filterModeBranch:
+			sessions = fuzzyFilterSessions(m.filterText,
+				func(s Session) string { return s.Branch }, sessions)
+		case filterModeFuzzy:
+			sessions = fuzzyFilterSessions(m.filterText,
+				func(s Session) string { return s.Slug + " " + s.Project + " " + s.Branch },
+				sessions)
+		}
 	}
-	switch m.filterMode {
-	case filterModeProject:
-		m.visibleSessions = fuzzyFilterSessions(m.filterText,
-			func(s Session) string { return s.Project }, m.sessions)
-	case filterModeBranch:
-		m.visibleSessions = fuzzyFilterSessions(m.filterText,
-			func(s Session) string { return s.Branch }, m.sessions)
-	case filterModeFuzzy:
-		m.visibleSessions = fuzzyFilterSessions(m.filterText,
-			func(s Session) string { return s.Slug + " " + s.Project + " " + s.Branch },
-			m.sessions)
-	default:
-		m.visibleSessions = m.sessions
+	if m.bookmarkOnly {
+		filtered := make([]Session, 0, len(sessions))
+		for _, s := range sessions {
+			if m.bookmarks[s.ID] {
+				filtered = append(filtered, s)
+			}
+		}
+		sessions = filtered
 	}
+	m.visibleSessions = sessions
 }
 
 // visibleTurns returns the list of turns filtered by visibility.
