@@ -306,3 +306,86 @@ func writeSession(t *testing.T, root, projectDir, filename, content string) {
 		t.Fatal(err)
 	}
 }
+
+// ----- direct unit tests for session.go string helpers (1D) -----
+
+func TestStripSystemTags(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty input", "", ""},
+		{"no tags", "plain user query", "plain user query"},
+		{"single system-reminder", "before<system-reminder>internal</system-reminder>after", "beforeafter"},
+		{"local-command-caveat", "<local-command-caveat>caveat</local-command-caveat>real text", "real text"},
+		{"command-name and command-message", "<command-name>/clear</command-name>\n<command-message>clear</command-message>", "\n"},
+		{"command-args", "x<command-args>--flag</command-args>y", "xy"},
+		{"multiple tags removed", "a<system-reminder>X</system-reminder>b<command-name>c</command-name>d", "abd"},
+		{"tag spans newlines", "before<system-reminder>line one\nline two</system-reminder>after", "beforeafter"},
+		{"unrelated tag preserved", "<random>kept</random>", "<random>kept</random>"},
+		{"unclosed tag preserved", "<system-reminder>oops", "<system-reminder>oops"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripSystemTags(tt.in)
+			if got != tt.want {
+				t.Errorf("stripSystemTags(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCollapseWhitespace(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty input", "", ""},
+		{"only whitespace", "   \t\n\r  ", ""},
+		{"no whitespace runs", "hello world", "hello world"},
+		{"runs of spaces collapsed", "hello    world", "hello world"},
+		{"newlines become spaces", "line1\nline2\nline3", "line1 line2 line3"},
+		{"tabs become spaces", "a\tb\tc", "a b c"},
+		{"carriage returns become spaces", "a\rb\rc", "a b c"},
+		{"leading/trailing trimmed", "  hello world  ", "hello world"},
+		{"mixed whitespace collapsed", "a\n\n\t  b", "a b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := collapseWhitespace(tt.in)
+			if got != tt.want {
+				t.Errorf("collapseWhitespace(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractQuery_DirectInputs(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"empty raw message", "", ""},
+		{"missing content field", `{"role":"user"}`, ""},
+		{"empty content string", `{"content":""}`, ""},
+		{"plain string content", `{"content":"hello there"}`, "hello there"},
+		{"string content stripped", `{"content":"<system-reminder>x</system-reminder>real msg"}`, "real msg"},
+		{"string content collapsed", `{"content":"a   b\n\nc"}`, "a b c"},
+		{"array of text blocks", `{"content":[{"type":"text","text":"first"},{"type":"text","text":"second"}]}`, "first second"},
+		{"array skips non-text blocks", `{"content":[{"type":"image"},{"type":"text","text":"only this"}]}`, "only this"},
+		{"array ignores empty text", `{"content":[{"type":"text","text":""},{"type":"text","text":"kept"}]}`, "kept"},
+		{"malformed json returns empty", `not json`, ""},
+		{"unrelated json shape returns empty", `{"foo":"bar"}`, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractQuery([]byte(tt.raw))
+			if got != tt.want {
+				t.Errorf("extractQuery(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
