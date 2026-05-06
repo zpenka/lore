@@ -110,6 +110,12 @@ type model struct {
 	bookmarks     map[string]bool
 	bookmarksPath string
 	bookmarkOnly  bool
+
+	// Timeline view state. timelineCursor is the highlighted day; dateFilter
+	// (when non-zero) restricts the list view to a specific calendar day,
+	// set when the user presses enter on a heatmap cell.
+	timelineCursor time.Time
+	dateFilter     time.Time
 }
 
 func newModel(projectsDir string) model {
@@ -278,6 +284,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleRerunKey(msg)
 	case modeStats:
 		return m.handleStatsKey(msg)
+	case modeTimeline:
+		return m.handleTimelineKey(msg)
 	}
 
 	return m, nil
@@ -380,6 +388,11 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statsOffset = 0
 			m.mode = modeStats
 		}
+	case "T":
+		if !m.loading {
+			m.mode = modeTimeline
+			m.timelineCursor = startOfDay(time.Now())
+		}
 	case "m":
 		if !m.loading && len(m.visibleSessions) > 0 {
 			selected := m.visibleSessions[m.cursor]
@@ -425,10 +438,11 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "esc":
 		// Clear filters and restore full list when any filter is applied.
-		if m.appliedFilterMode != filterModeNone || m.bookmarkOnly {
+		if m.appliedFilterMode != filterModeNone || m.bookmarkOnly || !m.dateFilter.IsZero() {
 			m.filterText = ""
 			m.appliedFilterMode = filterModeNone
 			m.bookmarkOnly = false
+			m.dateFilter = time.Time{}
 			m.applyFilter()
 			m.cursor = 0
 		}
@@ -776,6 +790,34 @@ func (m model) handleRerunKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleTimelineKey handles keys in timeline (heatmap) mode.
+func (m model) handleTimelineKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	hm := buildHeatmap(m.sessions, time.Now())
+	switch msg.String() {
+	case "q", "esc":
+		m.mode = modeList
+		return m, nil
+	case "h", "left":
+		next := m.timelineCursor.AddDate(0, 0, -1)
+		if !next.Before(hm.earliestDay()) {
+			m.timelineCursor = next
+		}
+	case "l", "right":
+		today := startOfDay(time.Now())
+		next := m.timelineCursor.AddDate(0, 0, 1)
+		if !next.After(today) {
+			m.timelineCursor = next
+		}
+	case "enter":
+		m.dateFilter = m.timelineCursor
+		m.applyFilter()
+		m.cursor = 0
+		m.listOffset = 0
+		m.mode = modeList
+	}
+	return m, nil
+}
+
 // handleStatsKey handles keys in stats mode.
 func (m model) handleStatsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -875,6 +917,16 @@ func (m *model) applyFilter() {
 		filtered := make([]Session, 0, len(sessions))
 		for _, s := range sessions {
 			if m.bookmarks[s.ID] {
+				filtered = append(filtered, s)
+			}
+		}
+		sessions = filtered
+	}
+	if !m.dateFilter.IsZero() {
+		want := startOfDay(m.dateFilter)
+		filtered := make([]Session, 0, len(sessions))
+		for _, s := range sessions {
+			if startOfDay(s.Timestamp).Equal(want) {
 				filtered = append(filtered, s)
 			}
 		}
