@@ -179,7 +179,7 @@ func TestRenderFooter_DefaultFooter(t *testing.T) {
 	m := loadedModelWith(
 		Session{Project: "grit", Slug: "s1", Timestamp: time.Now()},
 	)
-	out := renderFooter(m)
+	out := renderListFooter(m)
 	if !strings.Contains(out, "j/k move") {
 		t.Errorf("default footer missing 'j/k move':\n%s", out)
 	}
@@ -197,7 +197,7 @@ func TestRenderFooter_ProjectFilterEntry(t *testing.T) {
 	)
 	m.filterMode = filterModeProject
 	m.filterText = "gr"
-	out := renderFooter(m)
+	out := renderListFooter(m)
 	if !strings.Contains(out, "project filter: gr_") {
 		t.Errorf("project filter entry footer wrong:\n%s", out)
 	}
@@ -215,7 +215,7 @@ func TestRenderFooter_BranchFilterEntry(t *testing.T) {
 	)
 	m.filterMode = filterModeBranch
 	m.filterText = "ma"
-	out := renderFooter(m)
+	out := renderListFooter(m)
 	if !strings.Contains(out, "branch filter: ma_") {
 		t.Errorf("branch filter entry footer wrong:\n%s", out)
 	}
@@ -234,7 +234,7 @@ func TestRenderFooter_ProjectFilterApplied(t *testing.T) {
 	)
 	m.filterText = "gr"
 	m.appliedFilterMode = filterModeProject
-	out := renderFooter(m)
+	out := renderListFooter(m)
 	if !strings.Contains(out, "filtered by project: gr") {
 		t.Errorf("project filter applied footer wrong:\n%s", out)
 	}
@@ -250,7 +250,7 @@ func TestRenderFooter_BranchFilterApplied(t *testing.T) {
 	)
 	m.filterText = "fi"
 	m.appliedFilterMode = filterModeBranch
-	out := renderFooter(m)
+	out := renderListFooter(m)
 	if !strings.Contains(out, "filtered by branch: fi") {
 		t.Errorf("branch filter applied footer wrong:\n%s", out)
 	}
@@ -718,8 +718,8 @@ func TestRerunView_Footer_ShowsRunAndCancel(t *testing.T) {
 	if !strings.Contains(out, "enter") || !strings.Contains(out, "run") {
 		t.Errorf("footer should show 'enter run': %s", out)
 	}
-	if !strings.Contains(out, "esc") || !strings.Contains(out, "cancel") {
-		t.Errorf("footer should show 'esc cancel': %s", out)
+	if !strings.Contains(out, "q/esc/h/← back") {
+		t.Errorf("footer should show 'q/esc/h/← back': %s", out)
 	}
 }
 

@@ -222,7 +222,7 @@ func TestModel_FuzzyFilter_FooterShowsEntryPrompt(t *testing.T) {
 	next, _ = m.Update(keyMsg("g"))
 	m = next.(model)
 
-	footer := renderFooter(m)
+	footer := renderListFooter(m)
 	// Footer should contain "fuzzy filter" indicator and the typed text "g"
 	if !strings.Contains(footer, "fuzzy") {
 		t.Errorf("footer in fuzzy entry mode should contain 'fuzzy', got: %q", footer)
@@ -245,7 +245,7 @@ func TestModel_FuzzyFilter_FooterShowsApplied(t *testing.T) {
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = next.(model)
 
-	footer := renderFooter(m)
+	footer := renderListFooter(m)
 	// Footer should contain "fuzzy" indicating the applied fuzzy filter
 	if !strings.Contains(footer, "fuzzy") {
 		t.Errorf("footer with applied fuzzy filter should contain 'fuzzy', got: %q", footer)
