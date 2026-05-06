@@ -23,3 +23,29 @@ func fuzzyFilterCandidates(query string, candidates []string) []string {
 	}
 	return result
 }
+
+// fuzzyFilterSessions returns the subset of sessions whose extracted
+// candidate string fuzzy-matches text. Empty/whitespace text returns
+// sessions unchanged. Results preserve the original input order; the
+// fuzzy ranking is used only for inclusion, not ordering.
+func fuzzyFilterSessions(text string, candidate func(Session) string, sessions []Session) []Session {
+	if strings.TrimSpace(text) == "" {
+		return sessions
+	}
+	candidates := make([]string, len(sessions))
+	for i, s := range sessions {
+		candidates[i] = candidate(s)
+	}
+	matched := fuzzyFilterCandidates(text, candidates)
+	matchSet := make(map[string]bool, len(matched))
+	for _, c := range matched {
+		matchSet[c] = true
+	}
+	var out []Session
+	for i, s := range sessions {
+		if matchSet[candidates[i]] {
+			out = append(out, s)
+		}
+	}
+	return out
+}
