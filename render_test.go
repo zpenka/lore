@@ -788,3 +788,210 @@ func TestStatsView_Footer(t *testing.T) {
 		t.Errorf("stats footer missing 'esc':\n%s", out)
 	}
 }
+
+// ----- unified footer tests (1A) -----
+
+// All sub-view footers must show "q/esc/h/← back" for the back-nav hint.
+// The list footer shows "q quit" instead.
+
+func TestListFooter_HasQuitHint(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "p", Slug: "s1", Timestamp: time.Now()},
+	)
+	m.width = 200
+	m.height = 40
+	out := renderListFooter(m)
+	if !strings.Contains(out, "q quit") {
+		t.Errorf("list footer should show 'q quit':\n%s", out)
+	}
+	if strings.Contains(out, "q/esc/h/← back") {
+		t.Errorf("list footer should not show 'back' hint (it's the root view):\n%s", out)
+	}
+}
+
+func TestDetailFooter_HasBackHint(t *testing.T) {
+	m := loadedModel("a")
+	m.mode = modeDetail
+	m.detailSession = Session{Slug: "x", Project: "p", Branch: "b", Timestamp: time.Now()}
+	m.turns = []turn{{kind: "user", body: "hi"}}
+	m.expandedTurns = make(map[int]bool)
+	m.width = 200
+	m.height = 40
+	out := renderDetailFooter(m)
+	if !strings.Contains(out, "q/esc/h/← back") {
+		t.Errorf("detail footer should show 'q/esc/h/← back':\n%s", out)
+	}
+}
+
+func TestSearchFooter_HasBackHint(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeSearch
+	m.searchMode = searchModeResults
+	m.searchQuery = "x"
+	m.searchResults = []SearchHit{
+		{Session: Session{ID: "1", Slug: "s1", Project: "p", Branch: "b", Timestamp: time.Now()}, HitCount: 1, Snippet: "x"},
+	}
+	m.width = 200
+	m.height = 40
+	out := renderSearchFooter(m)
+	if !strings.Contains(out, "q/esc/h/← back") {
+		t.Errorf("search results footer should show 'q/esc/h/← back':\n%s", out)
+	}
+}
+
+func TestProjectFooter_HasBackHint(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeProject
+	m.projectCWD = "/x/p"
+	m.width = 200
+	m.height = 40
+	out := renderProjectFooter(m)
+	if !strings.Contains(out, "q/esc/h/← back") {
+		t.Errorf("project footer should show 'q/esc/h/← back':\n%s", out)
+	}
+}
+
+func TestRerunFooter_HasBackHint(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeRerun
+	m.detailSession = Session{Slug: "x"}
+	m.rerunPrompt = "hi"
+	m.rerunCWD = "/x"
+	m.width = 200
+	m.height = 40
+	out := renderRerunFooter(m)
+	if !strings.Contains(out, "q/esc/h/← back") {
+		t.Errorf("rerun footer should show 'q/esc/h/← back':\n%s", out)
+	}
+	if !strings.Contains(out, "enter run") {
+		t.Errorf("rerun footer should still show 'enter run':\n%s", out)
+	}
+}
+
+func TestStatsFooter_HasBackHintAndPaging(t *testing.T) {
+	m := loadedModelWith(
+		Session{Project: "p", Slug: "s1", Timestamp: time.Now()},
+	)
+	m.mode = modeStats
+	m.statsData = []statsRow{}
+	m.width = 200
+	m.height = 40
+	out := renderStatsFooter(m)
+	if !strings.Contains(out, "q/esc/h/← back") {
+		t.Errorf("stats footer should show 'q/esc/h/← back':\n%s", out)
+	}
+	if !strings.Contains(out, "d/u page") {
+		t.Errorf("stats footer should show 'd/u page' (d/u scrolling is supported):\n%s", out)
+	}
+}
+
+// Flash messages must take precedence over hints for every footer.
+
+func TestAllFooters_FlashTakesPrecedence(t *testing.T) {
+	cases := []struct {
+		name string
+		make func() string
+	}{
+		{
+			name: "list",
+			make: func() string {
+				m := loadedModelWith(Session{Project: "p", Slug: "s1", Timestamp: time.Now()})
+				m.width = 200
+				m.height = 40
+				m.flashMsg = "FLASH-LIST"
+				return renderListFooter(m)
+			},
+		},
+		{
+			name: "detail",
+			make: func() string {
+				m := loadedModel("a")
+				m.mode = modeDetail
+				m.detailSession = Session{Slug: "x", Project: "p", Branch: "b", Timestamp: time.Now()}
+				m.turns = []turn{{kind: "user", body: "hi"}}
+				m.expandedTurns = make(map[int]bool)
+				m.width = 200
+				m.height = 40
+				m.flashMsg = "FLASH-DETAIL"
+				return renderDetailFooter(m)
+			},
+		},
+		{
+			name: "search",
+			make: func() string {
+				m := newModel("/d")
+				m.mode = modeSearch
+				m.searchMode = searchModeResults
+				m.searchQuery = "x"
+				m.width = 200
+				m.height = 40
+				m.flashMsg = "FLASH-SEARCH"
+				return renderSearchFooter(m)
+			},
+		},
+		{
+			name: "project",
+			make: func() string {
+				m := newModel("/d")
+				m.mode = modeProject
+				m.projectCWD = "/x/p"
+				m.width = 200
+				m.height = 40
+				m.flashMsg = "FLASH-PROJECT"
+				return renderProjectFooter(m)
+			},
+		},
+		{
+			name: "rerun",
+			make: func() string {
+				m := newModel("/d")
+				m.mode = modeRerun
+				m.detailSession = Session{Slug: "x"}
+				m.rerunPrompt = "hi"
+				m.rerunCWD = "/x"
+				m.width = 200
+				m.height = 40
+				m.flashMsg = "FLASH-RERUN"
+				return renderRerunFooter(m)
+			},
+		},
+		{
+			name: "stats",
+			make: func() string {
+				m := loadedModelWith(Session{Project: "p", Slug: "s1", Timestamp: time.Now()})
+				m.mode = modeStats
+				m.width = 200
+				m.height = 40
+				m.flashMsg = "FLASH-STATS"
+				return renderStatsFooter(m)
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			out := c.make()
+			want := "FLASH-" + strings.ToUpper(c.name)
+			if !strings.Contains(out, want) {
+				t.Errorf("%s footer should show flash %q when set:\n%s", c.name, want, out)
+			}
+			// When flash is set, the static hints should not be rendered.
+			if strings.Contains(out, "q/esc/h/← back") || strings.Contains(out, "q quit") {
+				t.Errorf("%s footer should suppress hints while flash is set:\n%s", c.name, out)
+			}
+		})
+	}
+}
+
+// Search entry mode footer should show its prompt + apply/cancel hints.
+func TestSearchFooter_EntryMode(t *testing.T) {
+	m := newModel("/d")
+	m.mode = modeSearch
+	m.searchMode = searchModeEntry
+	m.searchQuery = "abc"
+	m.width = 200
+	m.height = 40
+	out := renderSearchFooter(m)
+	if !strings.Contains(out, "abc") {
+		t.Errorf("search entry footer should include current query:\n%s", out)
+	}
+}
