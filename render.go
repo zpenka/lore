@@ -99,7 +99,7 @@ func listBodyLines(m model, now time.Time) (lines []string, cursorLine int) {
 		if i == m.cursor {
 			cursorLine = len(lines)
 		}
-		lines = append(lines, renderRow(s, i == m.cursor, m.width))
+		lines = append(lines, renderRow(s, i == m.cursor, m.bookmarks[s.ID], m.width))
 	}
 	return
 }
@@ -350,10 +350,14 @@ func renderDivider(width int) string {
 	return strings.Repeat("─", width)
 }
 
-func renderRow(s Session, selected bool, width int) string {
+func renderRow(s Session, selected, bookmarked bool, width int) string {
 	cursor := "  "
 	if selected {
 		cursor = " ►"
+	}
+	mark := " "
+	if bookmarked {
+		mark = "★"
 	}
 	query := s.Query
 	if query == "" {
@@ -363,8 +367,9 @@ func renderRow(s Session, selected bool, width int) string {
 	if queryWidth < 10 {
 		queryWidth = 10
 	}
-	row := fmt.Sprintf("%s %s  %-*s  %-*s  %s",
+	row := fmt.Sprintf("%s%s %s  %-*s  %-*s  %s",
 		cursor,
+		mark,
 		s.Timestamp.Format("15:04"),
 		projectColWidth, padTrunc(s.Project, projectColWidth),
 		branchColWidth, padTrunc(s.Branch, branchColWidth),
@@ -445,7 +450,12 @@ func searchBodyLines(m model) (lines []string, cursorLine int) {
 		if isSelected {
 			cursorLine = len(lines)
 		}
-		row := fmt.Sprintf("  %s  %-*s  %-*s  %s",
+		mark := " "
+		if m.bookmarks[hit.Session.ID] {
+			mark = "★"
+		}
+		row := fmt.Sprintf("  %s %s  %-*s  %-*s  %s",
+			mark,
 			hit.Session.Timestamp.Format("15:04"),
 			projectColWidth, padTrunc(hit.Session.Project, projectColWidth),
 			branchColWidth, padTrunc(hit.Session.Branch, branchColWidth),
@@ -679,9 +689,11 @@ func renderHelpOverlay(m model) string {
  │    p             Filter to one project (inline)                          │
  │    b             Filter to one branch (inline)                           │
  │    f             Fuzzy filter across slug, project, and branch           │
+ │    M             Toggle bookmark-only filter                             │
  │    esc           Clear filter                                            │
  │                                                                           │
  │  Other:                                                                   │
+ │    m             Bookmark / unbookmark the selected session              │
  │    P             Open project view for current session's CWD             │
  │    S             Open usage stats panel (token counts + estimated cost)  │
  │    /             Enter full-text search                                  │
@@ -704,6 +716,7 @@ func renderHelpOverlay(m model) string {
  │    space         Expand/collapse tool turn; Agent ⧑ loads sidechain      │
  │    y             Copy the nearest user prompt to clipboard                │
  │    r             Enter re-run mode with the selected user prompt          │
+ │    m             Bookmark / unbookmark this session                       │
  │                                                                            │
  │  Other:                                                                    │
  │    /             Enter full-text search                                   │

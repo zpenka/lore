@@ -20,7 +20,7 @@ func TestSearchAndListRows_AlignedBranchColumn(t *testing.T) {
 	}
 
 	// list view branch column width.
-	listRow := renderRow(s, false, 200)
+	listRow := renderRow(s, false, false, 200)
 	// search view branch column comes from searchBodyLines which currently
 	// hard-codes %-26s. After this refactor both should use projectColWidth
 	// and branchColWidth (the single source of truth).
