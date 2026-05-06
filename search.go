@@ -223,11 +223,9 @@ func countAndSnippet(text, query string) (int, string) {
 	return count, snippet
 }
 
-// buildSnippet creates a ~80-char snippet with the match centered if past char 40.
+// buildSnippet creates a snippetMaxLen-char snippet with the match centered if past char 40.
 func buildSnippet(text, query string, matchPos int) string {
-	const maxLen = 80
-
-	if len(text) <= maxLen {
+	if len(text) <= snippetMaxLen {
 		return text
 	}
 
@@ -238,10 +236,10 @@ func buildSnippet(text, query string, matchPos int) string {
 		if start < 0 {
 			start = 0
 		}
-		end := start + maxLen
+		end := start + snippetMaxLen
 		if end > len(text) {
 			end = len(text)
-			start = end - maxLen
+			start = end - snippetMaxLen
 			if start < 0 {
 				start = 0
 			}
@@ -256,10 +254,10 @@ func buildSnippet(text, query string, matchPos int) string {
 		return snippet
 	}
 
-	// Match is early, just take first 80 chars
-	snippet := text[:maxLen]
-	if len(text) > maxLen {
-		snippet = snippet[:maxLen-3] + "..."
+	// Match is early, just take first snippetMaxLen chars
+	snippet := text[:snippetMaxLen]
+	if len(text) > snippetMaxLen {
+		snippet = snippet[:snippetMaxLen-3] + "..."
 	}
 	return snippet
 }
