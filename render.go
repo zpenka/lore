@@ -60,6 +60,8 @@ func (m model) View() string {
 		return renderRerunView(m)
 	case modeStats:
 		return renderStatsView(m)
+	case modeTimeline:
+		return renderTimelineView(m)
 	}
 	return ""
 }
@@ -696,6 +698,7 @@ func renderHelpOverlay(m model) string {
  │    m             Bookmark / unbookmark the selected session              │
  │    P             Open project view for current session's CWD             │
  │    S             Open usage stats panel (token counts + estimated cost)  │
+ │    T             Open timeline activity heatmap                          │
  │    /             Enter full-text search                                  │
  │    ?             Show this help overlay                                  │
  │    q             Quit                                                    │
@@ -796,6 +799,25 @@ func renderHelpOverlay(m model) string {
  │  Return to List:                                                           │
  │    esc, q, h, ← Back to session list                                      │
  │    ?            Show this help overlay                                    │
+ │                                                                            │
+ └────────────────────────────────────────────────────────────────────────┘
+`
+
+	case modeTimeline:
+		helpText = `
+ ┌─ Timeline Mode Help ──────────────────────────────────────────────────────┐
+ │                                                                            │
+ │  Activity heatmap: 8 weeks × 7 days. Each cell shows the day's            │
+ │  session count, shaded by intensity (dim → bright).                       │
+ │                                                                            │
+ │  Navigation:                                                               │
+ │    h, ←          Move cursor one day earlier                              │
+ │    l, →          Move cursor one day later                                │
+ │                                                                            │
+ │  Actions:                                                                  │
+ │    enter         Filter list to the highlighted day                       │
+ │    esc, q        Back to session list                                     │
+ │    ?             Show this help overlay                                   │
  │                                                                            │
  └────────────────────────────────────────────────────────────────────────┘
 `
@@ -907,4 +929,101 @@ func renderStatsFooter(m model) string {
 		return flashStyle.Render(" " + m.flashMsg)
 	}
 	return footerStyle.Render(" j/k move   d/u page   g/G top/bottom   q/esc/h/← back")
+}
+
+// ----- timeline mode -----
+
+// Heatmap cell glyphs and intensity styles. The five-block ramp gives a
+// readable density gradient on both 256-color and truecolor terminals.
+var heatmapStyles = [4]lipgloss.Style{
+	lipgloss.NewStyle().Foreground(lipgloss.Color("236")), // 0: empty / dim
+	lipgloss.NewStyle().Foreground(lipgloss.Color("28")),  // 1: light
+	lipgloss.NewStyle().Foreground(lipgloss.Color("34")),  // 2: medium
+	lipgloss.NewStyle().Foreground(lipgloss.Color("46")),  // 3: bright
+}
+
+const heatmapEmptyGlyph = "░░"
+const heatmapFilledGlyph = "██"
+
+func heatmapGlyph(count int) string {
+	if count == 0 {
+		return heatmapEmptyGlyph
+	}
+	return heatmapFilledGlyph
+}
+
+// renderTimelineHeader builds the timeline header line.
+func renderTimelineHeader(m model) string {
+	hm := buildHeatmap(m.sessions, time.Now())
+	total := 0
+	for r := 0; r < heatmapRows; r++ {
+		for c := 0; c < heatmapCols; c++ {
+			total += hm.Cells[r][c].Count
+		}
+	}
+	return headerStyle.Render(fmt.Sprintf(" lore · activity heatmap · %d session%s in last 8 weeks",
+		total, plural(total)))
+}
+
+// renderTimelineFooter shows the highlighted date plus navigation hints.
+func renderTimelineFooter(m model) string {
+	if m.flashMsg != "" {
+		return flashStyle.Render(" " + m.flashMsg)
+	}
+	hm := buildHeatmap(m.sessions, time.Now())
+	count := hm.countOn(m.timelineCursor)
+	dateStr := m.timelineCursor.Format("2006-01-02 (Mon)")
+	hint := footerStyle.Render(" h/← l/→ move day   enter filter list   q/esc back")
+	info := footerStyle.Render(fmt.Sprintf(" %s   %d session%s", dateStr, count, plural(count)))
+	return info + "\n" + hint
+}
+
+// renderTimelineView draws an 8-week heatmap with a cursor cell.
+func renderTimelineView(m model) string {
+	var b strings.Builder
+	hm := buildHeatmap(m.sessions, time.Now())
+	cursorRow, cursorCol, _ := hm.cellOf(m.timelineCursor)
+
+	b.WriteString(renderTimelineHeader(m))
+	b.WriteByte('\n')
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+
+	weekdayLabels := [heatmapRows]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+	for row := 0; row < heatmapRows; row++ {
+		var line strings.Builder
+		line.WriteString("  " + weekdayLabels[row] + "  ")
+		for col := 0; col < heatmapCols; col++ {
+			cell := hm.Cells[row][col]
+			glyph := heatmapGlyph(cell.Count)
+			style := heatmapStyles[heatmapBucket(cell.Count)]
+			rendered := style.Render(glyph)
+			if row == cursorRow && col == cursorCol {
+				rendered = selectedStyle.Render("[" + glyph + "]")
+			} else {
+				rendered = " " + rendered + " "
+			}
+			line.WriteString(rendered)
+		}
+		b.WriteString(line.String())
+		b.WriteByte('\n')
+	}
+
+	// Legend
+	b.WriteByte('\n')
+	var legend strings.Builder
+	legend.WriteString("        less ")
+	for i := 0; i < 4; i++ {
+		legend.WriteString(heatmapStyles[i].Render(heatmapFilledGlyph))
+		legend.WriteString(" ")
+	}
+	legend.WriteString("more")
+	b.WriteString(legend.String())
+	b.WriteByte('\n')
+
+	b.WriteString(renderDivider(m.width))
+	b.WriteByte('\n')
+	b.WriteString(renderTimelineFooter(m))
+	b.WriteByte('\n')
+	return b.String()
 }
