@@ -114,7 +114,7 @@ func renderListView(m model) string {
 
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
-	b.WriteString(renderFooter(m))
+	b.WriteString(renderListFooter(m))
 	if m.detailLoading {
 		b.WriteString("  (loading session...)")
 	}
@@ -373,7 +373,7 @@ func plural(n int) string {
 	return "s"
 }
 
-func renderFooter(m model) string {
+func renderListFooter(m model) string {
 	if m.flashMsg != "" {
 		return flashStyle.Render(" " + m.flashMsg)
 	}
@@ -481,16 +481,21 @@ func renderSearchView(m model) string {
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
 
-	if m.flashMsg != "" {
-		b.WriteString(flashStyle.Render(" " + m.flashMsg))
-	} else if m.searchMode == searchModeEntry {
-		b.WriteString(footerStyle.Render(" search: " + m.searchQuery + "_   [enter] run   [esc] cancel"))
-	} else {
-		b.WriteString(footerStyle.Render(" j/k move   enter open   / new search   g/G top/bottom   esc back"))
-	}
+	b.WriteString(renderSearchFooter(m))
 	b.WriteByte('\n')
 
 	return b.String()
+}
+
+// renderSearchFooter renders the footer for search mode (both entry and results).
+func renderSearchFooter(m model) string {
+	if m.flashMsg != "" {
+		return flashStyle.Render(" " + m.flashMsg)
+	}
+	if m.searchMode == searchModeEntry {
+		return footerStyle.Render(" search: " + m.searchQuery + "_   [enter] run   [esc] cancel")
+	}
+	return footerStyle.Render(" j/k move   d/u page   enter open   / new search   g/G top/bottom   q/esc/h/← back")
 }
 
 // ----- re-run -----
@@ -535,9 +540,17 @@ func renderRerunView(m model) string {
 
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
-	b.WriteString(footerStyle.Render(" enter run   esc cancel"))
+	b.WriteString(renderRerunFooter(m))
 	b.WriteByte('\n')
 	return b.String()
+}
+
+// renderRerunFooter renders the footer for re-run mode.
+func renderRerunFooter(m model) string {
+	if m.flashMsg != "" {
+		return flashStyle.Render(" " + m.flashMsg)
+	}
+	return footerStyle.Render(" enter run   q/esc/h/← back")
 }
 
 // extractToolName extracts the tool name from the tool body string.
@@ -853,5 +866,5 @@ func renderStatsFooter(m model) string {
 	if m.flashMsg != "" {
 		return flashStyle.Render(" " + m.flashMsg)
 	}
-	return footerStyle.Render(" j/k move   g/G top/bottom   esc/q back to list")
+	return footerStyle.Render(" j/k move   d/u page   g/G top/bottom   q/esc/h/← back")
 }

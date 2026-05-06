@@ -135,5 +135,5 @@ func renderProjectFooter(m model) string {
 	if m.flashMsg != "" {
 		return flashStyle.Render(" " + m.flashMsg)
 	}
-	return footerStyle.Render(" j/k move   d/u page   enter open   g/G top/bottom   q/esc back")
+	return footerStyle.Render(" j/k move   d/u page   enter open   g/G top/bottom   q/esc/h/← back")
 }
