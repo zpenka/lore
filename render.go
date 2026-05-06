@@ -24,6 +24,23 @@ var (
 // scrollable body in every mode: header + divider + divider + footer.
 const chromeLines = 4
 
+// Layout constants shared across list and search rows so both views
+// render consistent column widths.
+const (
+	projectColWidth = 12
+	branchColWidth  = 20
+	// fixedCols accounts for cursor (2) + space (1) + time (5) + gap (2) +
+	// projectColWidth + gap (2) + branchColWidth + gap (2) when the row
+	// includes a trailing query column.
+	fixedCols = 48
+
+	// rerunMaxLines bounds the prompt-box height in rerun mode.
+	rerunMaxLines = 5
+
+	// snippetMaxLen is the search-result snippet character budget.
+	snippetMaxLen = 80
+)
+
 func (m model) View() string {
 	// If help overlay is showing, render it instead of the normal view
 	if m.showHelp {
@@ -323,20 +340,11 @@ func renderDivider(width int) string {
 	return strings.Repeat("─", width)
 }
 
-// renderRows is retained for tests that don't care about viewport semantics.
-// New code should use listBodyLines + clampOffset + sliceLines instead.
-func renderRows(m model, now time.Time) string {
-	lines, _ := listBodyLines(m, now)
-	return strings.Join(lines, "\n") + "\n"
-}
-
 func renderRow(s Session, selected bool, width int) string {
 	cursor := "  "
 	if selected {
 		cursor = " ►"
 	}
-	// Fixed columns: cursor(2) + space(1) + time(5) + gap(2) + project(12) + gap(2) + branch(20) + gap(2) = 46
-	const fixedCols = 48
 	query := s.Query
 	if query == "" {
 		query = s.Slug
@@ -345,11 +353,11 @@ func renderRow(s Session, selected bool, width int) string {
 	if queryWidth < 10 {
 		queryWidth = 10
 	}
-	row := fmt.Sprintf("%s %s  %-12s  %-20s  %s",
+	row := fmt.Sprintf("%s %s  %-*s  %-*s  %s",
 		cursor,
 		s.Timestamp.Format("15:04"),
-		padTrunc(s.Project, 12),
-		padTrunc(s.Branch, 20),
+		projectColWidth, padTrunc(s.Project, projectColWidth),
+		branchColWidth, padTrunc(s.Branch, branchColWidth),
 		padTrunc(query, queryWidth),
 	)
 	if selected {
@@ -427,10 +435,10 @@ func searchBodyLines(m model) (lines []string, cursorLine int) {
 		if isSelected {
 			cursorLine = len(lines)
 		}
-		row := fmt.Sprintf("  %s  %-12s  %-26s  %s",
+		row := fmt.Sprintf("  %s  %-*s  %-*s  %s",
 			hit.Session.Timestamp.Format("15:04"),
-			padTrunc(hit.Session.Project, 12),
-			padTrunc(hit.Session.Branch, 26),
+			projectColWidth, padTrunc(hit.Session.Project, projectColWidth),
+			branchColWidth, padTrunc(hit.Session.Branch, branchColWidth),
 			hit.Session.Slug,
 		)
 		snippet := "    ▸ " + hit.Snippet
@@ -510,11 +518,10 @@ func renderRerunView(m model) string {
 		boxWidth = 10
 	}
 	b.WriteString(" ┌" + strings.Repeat("─", boxWidth) + "┐\n")
-	const maxLines = 5
 	promptLines := strings.Split(m.rerunPrompt, "\n")
 	rendered := 0
 	for _, line := range promptLines {
-		if rendered >= maxLines {
+		if rendered >= rerunMaxLines {
 			b.WriteString(" │ " + truncatePromptLine("...", boxWidth-2) + "\n")
 			break
 		}
@@ -523,7 +530,7 @@ func renderRerunView(m model) string {
 		b.WriteString(" │ " + padded + " │\n")
 		rendered++
 	}
-	for rendered < maxLines && rendered < len(promptLines) {
+	for rendered < rerunMaxLines && rendered < len(promptLines) {
 		padded := strings.Repeat(" ", boxWidth-2)
 		b.WriteString(" │ " + padded + " │\n")
 		rendered++
