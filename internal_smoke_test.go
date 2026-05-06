@@ -18,7 +18,7 @@ func TestSmoke_RealClaudeProjects(t *testing.T) {
 	if _, err := os.Stat(dir); err != nil {
 		t.Skipf("no %s on this machine", dir)
 	}
-	sessions, err := scanSessions(dir)
+	sessions, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("scanSessions(%q): %v", dir, err)
 	}

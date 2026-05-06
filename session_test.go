@@ -70,7 +70,7 @@ func TestScanSessions_SortsNewestFirst(t *testing.T) {
 	writeSession(t, dir, "-proj-b", "mid.jsonl",
 		userEventLine("mid", "2026-04-20T10:00:00Z", "/proj-b", "main", "mid-work"))
 
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("scanSessions: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestScanSessions_SortsNewestFirst(t *testing.T) {
 
 func TestScanSessions_EmptyDir(t *testing.T) {
 	dir := t.TempDir()
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestScanSessions_SkipsBadFiles(t *testing.T) {
 	writeSession(t, dir, "-proj", "no-user.jsonl", `{"type":"queue-operation"}`)
 	writeSession(t, dir, "-proj", "readme.txt", "hello")
 
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestScanSessions_RecordsAbsolutePath(t *testing.T) {
 	writeSession(t, dir, "-proj", "s.jsonl",
 		userEventLine("s", "2026-05-01T10:00:00Z", "/proj", "main", "work"))
 
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("scanSessions: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestScanSessions_ExcludesSidechains(t *testing.T) {
 	writeSidechain(t, dir, "-proj", "abc-123", "agent-xyz.jsonl",
 		sidechainEventLine("xyz", "2026-05-01T10:01:00Z", "/proj", "main", "sidechain-work"))
 
-	got, err := scanSessions(dir)
+	got, _, err := scanSessions(dir)
 	if err != nil {
 		t.Fatalf("scanSessions: %v", err)
 	}

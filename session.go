@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -90,10 +91,12 @@ func parseSessionMetadata(r io.Reader) (Session, error) {
 
 // scanSessions walks rootDir for *.jsonl files, parses each one's metadata,
 // and returns sessions sorted by timestamp (newest first). Files that can't
-// be parsed are skipped silently — a corrupt transcript shouldn't break the
-// whole list.
-func scanSessions(rootDir string) ([]Session, error) {
+// be opened or parsed are skipped; the second return value carries one
+// short message per skip so the UI can surface the count to the user.
+// A corrupt transcript shouldn't break the whole list.
+func scanSessions(rootDir string) ([]Session, []string, error) {
 	var sessions []Session
+	var warnings []string
 	err := filepath.WalkDir(rootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || filepath.Ext(path) != ".jsonl" {
 			return nil
@@ -103,11 +106,13 @@ func scanSessions(rootDir string) ([]Session, error) {
 		}
 		f, ferr := os.Open(path)
 		if ferr != nil {
+			warnings = append(warnings, fmt.Sprintf("%s: %v", path, ferr))
 			return nil
 		}
 		defer f.Close()
 		meta, perr := parseSessionMetadata(f)
 		if perr != nil {
+			warnings = append(warnings, fmt.Sprintf("%s: %v", path, perr))
 			return nil
 		}
 		meta.Path = path
@@ -115,12 +120,12 @@ func scanSessions(rootDir string) ([]Session, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, warnings, err
 	}
 	sort.Slice(sessions, func(i, j int) bool {
 		return sessions[i].Timestamp.After(sessions[j].Timestamp)
 	})
-	return sessions, nil
+	return sessions, warnings, nil
 }
 
 var systemTagRe = regexp.MustCompile(`(?s)<(local-command-caveat|command-name|command-message|command-args|system-reminder)(?:[^>]*)>.*?</(?:local-command-caveat|command-name|command-message|command-args|system-reminder)>`)

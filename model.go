@@ -21,6 +21,7 @@ const (
 // sessionsLoadedMsg is dispatched when scanSessions finishes.
 type sessionsLoadedMsg struct {
 	sessions []Session
+	warnings []string
 	err      error
 }
 
@@ -97,6 +98,11 @@ type model struct {
 
 	// FTS5 search index (nil until first search; fallback to linear scan if nil)
 	index *Index
+
+	// warnings are short messages produced during session scan for files
+	// that were skipped (unreadable, malformed, no user event). Surfaced
+	// in the list header as "(N skipped)" when non-empty.
+	warnings []string
 }
 
 func newModel(projectsDir string) model {
@@ -171,8 +177,8 @@ func (m model) clampStatsOffsetNow() model {
 
 func loadSessionsCmd(dir string) tea.Cmd {
 	return func() tea.Msg {
-		ss, err := scanSessions(dir)
-		return sessionsLoadedMsg{sessions: ss, err: err}
+		ss, warnings, err := scanSessions(dir)
+		return sessionsLoadedMsg{sessions: ss, warnings: warnings, err: err}
 	}
 }
 
@@ -189,6 +195,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.sessions = msg.sessions
 		m.visibleSessions = msg.sessions
+		m.warnings = msg.warnings
 		m.err = msg.err
 		return m, nil
 
