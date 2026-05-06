@@ -116,7 +116,7 @@ func renderListView(m model) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(renderHeader(m))
+	b.WriteString(renderListHeader(m))
 	b.WriteByte('\n')
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
@@ -270,20 +270,7 @@ func renderDetailView(m model) string {
 
 	var b strings.Builder
 
-	dateStr := m.detailSession.Timestamp.Format("2006-01-02")
-	visible := m.visibleTurns()
-	turnInfo := ""
-	if len(visible) > 0 {
-		turnInfo = fmt.Sprintf("   turn %d/%d", m.cursorDetail+1, len(visible))
-	}
-	headerLine := fmt.Sprintf(" %s · %s · %s   %s%s",
-		m.detailSession.Slug,
-		m.detailSession.Project,
-		m.detailSession.Branch,
-		dateStr,
-		turnInfo,
-	)
-	b.WriteString(headerStyle.Render(headerLine))
+	b.WriteString(renderDetailHeader(m))
 	b.WriteByte('\n')
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
@@ -308,6 +295,24 @@ func renderDetailView(m model) string {
 	return b.String()
 }
 
+// renderDetailHeader builds the detail-mode header line.
+func renderDetailHeader(m model) string {
+	dateStr := m.detailSession.Timestamp.Format("2006-01-02")
+	visible := m.visibleTurns()
+	turnInfo := ""
+	if len(visible) > 0 {
+		turnInfo = fmt.Sprintf("   turn %d/%d", m.cursorDetail+1, len(visible))
+	}
+	headerLine := fmt.Sprintf(" %s · %s · %s   %s%s",
+		m.detailSession.Slug,
+		m.detailSession.Project,
+		m.detailSession.Branch,
+		dateStr,
+		turnInfo,
+	)
+	return headerStyle.Render(headerLine)
+}
+
 // renderDetailFooter renders the footer for detail view.
 func renderDetailFooter(m model) string {
 	if m.flashMsg != "" {
@@ -324,7 +329,7 @@ func renderDetailFooter(m model) string {
 
 // ----- list header / row helpers -----
 
-func renderHeader(m model) string {
+func renderListHeader(m model) string {
 	nProjects := countProjects(m.sessions)
 	return headerStyle.Render(fmt.Sprintf(
 		" lore · %d session%s across %d project%s",
@@ -453,27 +458,29 @@ func searchBodyLines(m model) (lines []string, cursorLine int) {
 	return
 }
 
+// renderSearchHeader builds the search-mode header for either entry or results mode.
+func renderSearchHeader(m model) string {
+	if m.searchMode == searchModeEntry {
+		return headerStyle.Render(fmt.Sprintf(" search: %s_   [enter] run   [esc] cancel", m.searchQuery))
+	}
+	hitWord := "hit"
+	if len(m.searchResults) != 1 {
+		hitWord = "hits"
+	}
+	hitCount := 0
+	for _, r := range m.searchResults {
+		hitCount += r.HitCount
+	}
+	return headerStyle.Render(fmt.Sprintf(" search: %s     %d %s across %d session%s",
+		m.searchQuery, hitCount, hitWord,
+		len(m.searchResults), plural(len(m.searchResults)),
+	))
+}
+
 func renderSearchView(m model) string {
 	var b strings.Builder
 
-	if m.searchMode == searchModeEntry {
-		headerLine := fmt.Sprintf(" search: %s_   [enter] run   [esc] cancel", m.searchQuery)
-		b.WriteString(headerStyle.Render(headerLine))
-	} else {
-		hitWord := "hit"
-		if len(m.searchResults) != 1 {
-			hitWord = "hits"
-		}
-		hitCount := 0
-		for _, r := range m.searchResults {
-			hitCount += r.HitCount
-		}
-		headerLine := fmt.Sprintf(" search: %s     %d %s across %d session%s",
-			m.searchQuery, hitCount, hitWord,
-			len(m.searchResults), plural(len(m.searchResults)),
-		)
-		b.WriteString(headerStyle.Render(headerLine))
-	}
+	b.WriteString(renderSearchHeader(m))
 	b.WriteByte('\n')
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
@@ -508,11 +515,15 @@ func renderSearchFooter(m model) string {
 
 // ----- re-run -----
 
+// renderRerunHeader builds the rerun-mode header line.
+func renderRerunHeader(m model) string {
+	return headerStyle.Render(fmt.Sprintf(" re-run · source: %s", m.detailSession.Slug))
+}
+
 func renderRerunView(m model) string {
 	var b strings.Builder
 
-	headerLine := fmt.Sprintf(" re-run · source: %s", m.detailSession.Slug)
-	b.WriteString(headerStyle.Render(headerLine))
+	b.WriteString(renderRerunHeader(m))
 	b.WriteByte('\n')
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
@@ -838,9 +849,7 @@ func statsBodyLines(m model) (lines []string, cursorLine int) {
 func renderStatsView(m model) string {
 	var b strings.Builder
 
-	n := len(m.statsData)
-	headerLine := fmt.Sprintf(" lore · usage stats · %d session%s", n, plural(n))
-	b.WriteString(headerStyle.Render(headerLine))
+	b.WriteString(renderStatsHeader(m))
 	b.WriteByte('\n')
 	b.WriteString(renderDivider(m.width))
 	b.WriteByte('\n')
@@ -866,6 +875,12 @@ func renderStatsView(m model) string {
 	b.WriteString(renderStatsFooter(m))
 	b.WriteByte('\n')
 	return b.String()
+}
+
+// renderStatsHeader builds the stats-mode header line.
+func renderStatsHeader(m model) string {
+	n := len(m.statsData)
+	return headerStyle.Render(fmt.Sprintf(" lore · usage stats · %d session%s", n, plural(n)))
 }
 
 // renderStatsFooter renders the footer for stats mode.
