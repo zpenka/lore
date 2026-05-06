@@ -2,7 +2,7 @@
 
 A keyboard-driven TUI for browsing your Claude Code session history.
 
-> **Status:** v0.6.0 — All planned phases complete.
+> **Status:** v0.7.0 — All planned phases plus the v0.7 cleanup and feature pass complete.
 > The repo split (Phase 6) has happened — this is the standalone
 > `github.com/zpenka/lore` module. See [Phasing](#phasing) for status.
 >
@@ -284,6 +284,9 @@ Nothing else. Stay lean.
 | 5c | **Cost/usage stats panel** — token usage and estimated cost per session | ✅ Done |
 | 6 | Standalone `github.com/zpenka/lore` repo | ✅ Done |
 | 7 | **Quality-of-life** — sidechain handling, re-run UX, back-nav, turn indicator, configurable dir | ✅ Done |
+| v0.7 | **Cleanup pass** — unified footers/headers, DRY filter logic, layout constants, dead-code removal, missing unit tests, scan warnings surfaced in list header | ✅ Done |
+| v0.7 | **Session bookmarks** — `m` toggles a `★`, `M` filters to bookmarks-only; persisted to `<cacheDir>/lore/bookmarks.json` | ✅ Done |
+| v0.7 | **Timeline activity heatmap** — `T` opens an 8-week × 7-day grid; `enter` filters list to a day | ✅ Done |
 
 Beyond the phased work, several quality-of-life items also landed:
 inline fuzzy ranking for the `p` / `b` filters, a `?` help overlay with
@@ -359,6 +362,45 @@ Smaller improvements identified during the 0.4.0 code review:
   precedence) and `LORE_PROJECTS_DIR` env var both override the default
   `~/.claude/projects/` location. Resolved by `resolveProjectsDir` in
   `lore.go`.
+
+### v0.7 — Cleanup and features ✅
+
+Two parts. First, a cleanup pass on the rendering and filter code:
+
+- **Unified footers** (`renderListFooter`, `renderDetailFooter`,
+  `renderSearchFooter`, `renderProjectFooter`, `renderRerunFooter`,
+  `renderStatsFooter`). All sub-views show `q/esc/h/← back`; list shows
+  `q quit`. Flash messages render through one path everywhere.
+- **Consistent header chrome** — every mode goes through a dedicated
+  `render*Header` function, rendered with `headerStyle` on a single line.
+- **DRY filter logic** — three near-identical branches in `applyFilter`
+  collapse into calls to a single `fuzzyFilterSessions(text, candidate, sessions)`
+  helper.
+- **Layout constants** — `projectColWidth`, `branchColWidth`, `fixedCols`,
+  `rerunMaxLines`, `snippetMaxLen` at the top of `render.go`. Search and
+  list rows now share a single source of truth for column widths.
+- **Dead-code removal** — `renderRows()` (marked "retained for tests"
+  with no callers) deleted.
+- **Missing unit tests** — direct unit tests added for `extractQuery`,
+  `stripSystemTags`, `collapseWhitespace`. The other "missing" functions
+  named in the plan turned out to already have direct tests.
+- **Scan warnings surfaced** — `scanSessions` now returns `(sessions,
+  warnings, err)`. The list header shows `(N skipped)` when warnings is
+  non-empty. No new logging; pure TUI surface.
+
+Then two features:
+
+- **Session bookmarks (2A)**: `bookmark.go`. `m` in list and detail
+  toggles a bookmark on the current session and persists to
+  `<cacheDir>/lore/bookmarks.json`. `M` toggles a bookmark-only filter
+  (binary; composes with the `f`/`p`/`b` filters). Bookmarked sessions
+  show `★` in the leftmost column of list, search, and project rows.
+- **Timeline heatmap (2B)**: `timeline.go`. `T` from list opens
+  `modeTimeline`, an 8-week × 7-day grid (Mon..Sun rows, oldest..newest
+  weeks). Cells are shaded by session count via `heatmapBucket(count)`
+  → 0 / 1-2 / 3-5 / 6+. `h`/`l` (or `←`/`→`) move the cursor across
+  days; `enter` applies a date filter and returns to list. The list's
+  esc handler clears the date filter alongside the others.
 
 ---
 

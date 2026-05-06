@@ -6,10 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **lore** is a keyboard-driven TUI (Terminal User Interface) for browsing Claude Code session history. It reads session transcripts from `~/.claude/projects/<encoded-cwd>/*.jsonl` and provides rich navigation, filtering, and search across sessions.
 
-Current status: **v0.6.0 — All planned phases complete.** Implemented:
+Current status: **v0.7.0 — All planned phases plus the v0.7 cleanup and feature pass complete.** Implemented:
 
 - Session list (3.1) with relative-time bucketing and query preview (first user message).
-- Inline project (`p`), branch (`b`), and fuzzy (`f`) filters with fuzzy ranking.
+- Inline project (`p`), branch (`b`), and fuzzy (`f`) filters with fuzzy ranking (DRY'd in v0.7 around a single `fuzzyFilterSessions` helper).
 - Session detail (3.2) with collapsible tool turns, copy-prompt, re-run, diff rendering for `Edit` / `Write` tool calls, and turn position indicator (`turn N/M`).
 - Half-page scrolling (`d`/`u`) in all navigable modes.
 - Full-text search (3.3): SQLite FTS5 index (Phase 5a) with linear-scan fallback.
@@ -20,6 +20,9 @@ Current status: **v0.6.0 — All planned phases complete.** Implemented:
 - Sidechain handling (Phase 7): sub-agent transcripts are filtered from the session list and viewable inline in the detail view by expanding Agent tool turns.
 - Help overlay (`?`) with mode-specific keybindings.
 - Per-mode viewport scrolling, mode-specific footers, and one-shot flash messages for no-op keys.
+- **Session bookmarks (v0.7, `m` and `M` keys)**: toggle a `★` on any session, persist to `<cacheDir>/lore/bookmarks.json`, filter to bookmarks-only with `M`. Composable with the `f`/`p`/`b` filters.
+- **Timeline activity heatmap (v0.7, `T` key)**: 8-week × 7-day grid showing session counts by day; navigate with `h`/`l` (or `←`/`→`), `enter` to filter the list to the highlighted date.
+- **Render chrome unification (v0.7)**: every mode goes through dedicated `render*Header` and `render*Footer` functions; back-nav hint is consistent across all sub-views (`q/esc/h/← back`); list shows `q quit`. Skipped sessions surface in the list header as "(N skipped)".
 
 See `DESIGN.md` for the full product vision and phasing roadmap.
 
@@ -43,7 +46,7 @@ LORE_PROJECTS_DIR=/path/to/projects ./lore
 
 The binary reads from `~/.claude/projects/` (created by Claude Code) by default, scans for `.jsonl` session transcripts, and displays them in a sortable list grouped by recency (today, yesterday, this week, etc.). The projects directory can be overridden via the `--dir` flag (highest precedence) or the `LORE_PROJECTS_DIR` environment variable; resolution lives in `lore.go::resolveProjectsDir`.
 
-The FTS5 search index is cached at `<os.UserCacheDir>/lore/index.db` (e.g. `~/.cache/lore/index.db` on Linux, `~/Library/Caches/lore/index.db` on macOS) and is populated lazily on first search.
+The FTS5 search index is cached at `<os.UserCacheDir>/lore/index.db` (e.g. `~/.cache/lore/index.db` on Linux, `~/Library/Caches/lore/index.db` on macOS) and is populated lazily on first search. Bookmarks are persisted alongside it at `<os.UserCacheDir>/lore/bookmarks.json`.
 
 ## Tests
 
@@ -75,16 +78,18 @@ The project uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) for th
 **Main files:**
 
 - `lore.go`: Entry point. `Run()` parses flags (`-v`/`--version`, `--dir`), resolves the projects dir (`--dir` > `LORE_PROJECTS_DIR` > `~/.claude/projects`), and starts the Bubble Tea program.
-- `model.go`: The Bubble Tea `model` struct and per-mode key dispatchers (`handleListKey`, `handleDetailKey`, `handleSearchKey`, `handleProjectKey`, `handleRerunKey`, `handleStatsKey`, `handleFilterEntryKey`). Also lazy-opens the FTS5 index on first search.
-- `render.go`: `View()`, mode-specific renderers (`renderListView`, `renderDetailView`, `renderSearchView`, `renderStatsView`, etc.), the help overlay, and all Lipgloss styles.
-- `session.go`: `Session` struct and `scanSessions()` / `parseSessionMetadata()` — reads only the first `user` event of each `.jsonl`. Also extracts `Query` (first user message text) via `extractQuery()`.
-- `bucket.go`: `timeBucket()` returns labels like "today", "yesterday", "this week" for relative-time grouping.
-- `detail.go`: Mode constants (`modeList`, `modeDetail`, `modeSearch`, `modeProject`, `modeRerun`, `modeStats`), `turn` struct, `parseTurnsFromJSONL()`, assistant/tool block extraction, and sidechain linking (`loadSessionTurns`, `sidechainsDir`, `loadSidechainTurns`).
+- `model.go`: The Bubble Tea `model` struct and per-mode key dispatchers (`handleListKey`, `handleDetailKey`, `handleSearchKey`, `handleProjectKey`, `handleRerunKey`, `handleStatsKey`, `handleTimelineKey`). Also lazy-opens the FTS5 index on first search and best-effort-loads bookmarks on startup.
+- `render.go`: `View()`, mode-specific renderers and dedicated `render*Header` / `render*Footer` functions (`renderListView`, `renderDetailView`, `renderSearchView`, `renderStatsView`, `renderTimelineView`, etc.), the help overlay, and all Lipgloss styles. Layout constants (`projectColWidth`, `branchColWidth`, `fixedCols`, `rerunMaxLines`, `snippetMaxLen`) live at the top.
+- `session.go`: `Session` struct and `scanSessions()` / `parseSessionMetadata()` — reads only the first `user` event of each `.jsonl`. Also extracts `Query` (first user message text) via `extractQuery()`. `scanSessions` returns `(sessions, warnings, err)`; warnings carry a short message per skipped file.
+- `bucket.go`: `timeBucket()` returns labels like "today", "yesterday", "this week" for relative-time grouping. Also provides `startOfDay()` used by both bucketing and the timeline heatmap.
+- `detail.go`: Mode constants (`modeList`, `modeDetail`, `modeSearch`, `modeProject`, `modeRerun`, `modeStats`, `modeTimeline`), `turn` struct, `parseTurnsFromJSONL()`, assistant/tool block extraction, and sidechain linking (`loadSessionTurns`, `sidechainsDir`, `loadSidechainTurns`).
 - `search.go`: `searchSessions()` — linear-scan full-text search returning `SearchHit`s ranked by hit count. Used as the fallback path when the FTS5 index is unavailable.
 - `index.go`: SQLite FTS5 search index. `OpenIndex(cacheDir)`, `Index.Sync(projectsDir)` for incremental mtime-based reindexing, `Index.Search(query)` for ranked FTS5 lookups, and `extractSessionText()` for indexable content.
 - `stats.go`: Usage-stats data layer. `parseSessionStats()` sums `assistant.message.usage` token counts; `estimateCost()` applies a per-million-token pricing table (Opus / Sonnet / Haiku); `formatTokenCount()` adds k/M suffixes.
 - `project.go`: `groupByBranch()` and project-view rendering helpers.
-- `filter.go`: `fuzzyFilterCandidates()` — wraps `github.com/sahilm/fuzzy` for the `p` / `b` inline filters.
+- `filter.go`: `fuzzyFilterCandidates()` (raw fuzzy ranking) plus `fuzzyFilterSessions(text, candidate, sessions)` — the generic helper that backs the three branches of `applyFilter` in v0.7.
+- `bookmark.go` (v0.7): `loadBookmarks` / `saveBookmarks` / `toggleBookmark` / `bookmarksFile()`. Bookmarks are stored as a small JSON `map[string]bool` keyed by session ID; only `true` entries are persisted.
+- `timeline.go` (v0.7): `Heatmap` data structure and `buildHeatmap(sessions, now)` — builds a 7×8 (Mon..Sun × 8 weeks) activity grid. `heatmapBucket(count)` maps a count to one of four intensity levels.
 - `clipboard.go`: `copyToClipboard()` — tries pbcopy, wl-copy, then xclip.
 - `rerun.go`: `rerunClaude()` returns a `tea.Cmd` that wraps `tea.ExecProcess` so the child `claude` invocation takes over the terminal cleanly.
 - `viewport.go`: `clampOffset()` and `sliceLines()` — the two primitives every renderer uses for edge-snap scrolling.
@@ -103,15 +108,18 @@ The project uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) for th
 - `Query`: First user message text, extracted from `message.content` of the first user event. Used as the primary label in list and project views; falls back to `Slug` when empty.
 - `Timestamp`: Extracted from the first user event.
 
-**Model**: Bubble Tea state machine. The `mode` field switches between `modeList`, `modeDetail`, `modeSearch`, `modeProject`, `modeRerun`, and `modeStats`. Each mode has its own cursor and viewport offset (`listOffset`, `detailOffset`, `searchOffset`, `projectOffset`, `statsOffset`) so navigating away and back preserves position.
+**Model**: Bubble Tea state machine. The `mode` field switches between `modeList`, `modeDetail`, `modeSearch`, `modeProject`, `modeRerun`, `modeStats`, and `modeTimeline`. Each mode has its own cursor and viewport offset (`listOffset`, `detailOffset`, `searchOffset`, `projectOffset`, `statsOffset`) so navigating away and back preserves position.
 
 Notable per-mode state:
-- **List**: `sessions`, `visibleSessions`, `cursor`, `filterMode` / `filterText` / `appliedFilterMode` for the inline `p` / `b` / `f` filters.
+- **List**: `sessions`, `visibleSessions`, `cursor`, `filterMode` / `filterText` / `appliedFilterMode` for the inline `p` / `b` / `f` filters. `bookmarkOnly` toggles the `M` filter; `dateFilter` (set by `enter` from the timeline) restricts the visible list to one calendar day. `applyFilter` composes all three filters. `warnings` carries skipped-file messages from `scanSessions`, surfaced in the list header.
 - **Detail**: `detailSession`, `turns`, `cursorDetail`, `expandedTurns` (which tool turns are unfolded), `justCopied`, `sidechainTurns` (lazy-loaded sidechain content keyed by turn index).
 - **Search**: `searchMode` (entry vs. results), `searchQuery`, `searchResults`, `searchCursor`. The FTS5 `index` is lazy-opened on the first `enter` press and falls back to linear scan on miss/error.
 - **Project**: `projectCWD`, `projectSessions`, `projectCursor`.
 - **Rerun**: `rerunPrompt`, `rerunCWD`, plus an injectable `rerunFn` so tests can substitute `tea.ExecProcess`.
 - **Stats**: `statsData` (slice of `statsRow`), `statsCursor`, `statsOffset`. Computed by `computeStatsRows` from the in-memory session list when `S` is pressed.
+- **Timeline**: `timelineCursor` (the highlighted day). The heatmap itself is rebuilt on each render from `m.sessions`; the cursor is bounded to the 8-week window.
+
+Cross-mode bookmark state lives on the model: `bookmarks map[string]bool`, `bookmarksPath string`. Toggled via `m` in list / detail; persisted on every change.
 
 The model also injects `clipboardFn` (default `copyToClipboard`) and `rerunFn` (default `rerunClaude`) so tests can swap real-system effects for fakes. The `projectsDir` field carries the resolved projects path so the FTS5 sync knows where to walk.
 
@@ -154,10 +162,13 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `p`: Inline project filter (type query, `enter` to apply, `esc` to cancel).
 - `b`: Inline branch filter.
 - `f`: Fuzzy filter across slug, project, and branch simultaneously.
+- `m`: Bookmark / unbookmark the selected session (persists to disk).
+- `M`: Toggle bookmark-only filter (binary; composes with the fuzzy filters).
 - `P`: Open the project view scoped to the selected session's CWD.
 - `S`: Open the usage stats panel.
+- `T`: Open the timeline activity heatmap.
 - `/`: Enter full-text search.
-- `esc`: Clear an applied filter.
+- `esc`: Clear any applied filter (fuzzy / bookmark-only / date).
 - `?`: Show help overlay.
 - `q`: Quit.
 
@@ -166,6 +177,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `space`: Expand or collapse a tool turn (the cursor must be on one). Agent turns with sidechains load the sub-agent conversation inline.
 - `y`: Copy the user prompt at-or-before the cursor to the clipboard.
 - `r`: Re-run with the current user prompt (enters re-run mode).
+- `m`: Bookmark / unbookmark this session.
 - `/`: Enter full-text search.
 - `esc` / `q` / `h` / `←`: Back to list.
 
@@ -177,7 +189,9 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 
 **Re-run mode** (`modeRerun`): `enter` to spawn `claude` with the chosen prompt and CWD (lore returns to the session list when `claude` exits); `esc` / `q` / `h` / `←` to cancel and return to detail.
 
-**Stats mode** (`modeStats`): `j` / `k`, `g` / `G` to navigate the per-session table; `esc` / `q` / `h` / `←` to return to the list. Columns: project · branch · model · input tokens · output tokens · estimated cost. Token counts use `k` / `M` suffixes; cost is computed from a built-in pricing table for Opus / Sonnet / Haiku families and shown as `--` for unknown models.
+**Stats mode** (`modeStats`): `j` / `k`, `g` / `G`, `d` / `u` to navigate the per-session table; `esc` / `q` / `h` / `←` to return to the list. Columns: project · branch · model · input tokens · output tokens · estimated cost. Token counts use `k` / `M` suffixes; cost is computed from a built-in pricing table for Opus / Sonnet / Haiku families and shown as `--` for unknown models.
+
+**Timeline mode** (`modeTimeline`): `h` / `←` and `l` / `→` move the cursor across days in an 8-week × 7-day activity heatmap. `enter` filters the list to the highlighted date and returns to list mode. `esc` / `q` / `h` / `←` returns without filtering. The grid renders Mon..Sun rows × 8 columns (oldest..newest), shaded by session count: 0 (dim), 1-2 (light), 3-5 (medium), 6+ (bright). Footer shows the highlighted date and its session count.
 
 ### Testing Strategy
 
@@ -191,9 +205,11 @@ Tests import `bubbletea` directly to send messages (e.g., `keyMsg()`) to the mod
 
 `View()` dispatches by `m.mode` to the per-mode renderer. Each renderer follows the same shape: header, divider, body lines (sliced through `clampOffset` + `sliceLines` from `viewport.go`), divider, footer. The `?` help overlay short-circuits the entire view.
 
-Styling is done via Lipgloss `NewStyle()` instances defined at the top of `render.go`.
+Every mode has dedicated `render*Header` and `render*Footer` functions (no inline header/footer construction inside the View renderer). Footer hints follow a uniform `key action` format separated by three spaces; sub-views all show `q/esc/h/← back`, while the list shows `q quit`. Flash messages are rendered through one path in every footer (precedence over hints).
 
-Body math goes through one of `listBodyLines`, `detailBodyLines`, `searchBodyLines`, or `projectBodyLines`. Each returns `(lines []string, cursorLine int)` so the viewport can edge-snap the offset to keep the cursor visible.
+Styling is done via Lipgloss `NewStyle()` instances defined at the top of `render.go`. Layout constants (`projectColWidth`, `branchColWidth`, `fixedCols`, `rerunMaxLines`, `snippetMaxLen`) are package-level so list and search rows render identical column widths.
+
+Body math goes through one of `listBodyLines`, `detailBodyLines`, `searchBodyLines`, `projectBodyLines`, or `statsBodyLines`. Each returns `(lines []string, cursorLine int)` so the viewport can edge-snap the offset to keep the cursor visible. Timeline mode renders its grid directly in `renderTimelineView` (fixed 7×8 layout, no scrolling).
 
 ### Phasing Notes
 
@@ -208,6 +224,9 @@ Body math goes through one of `listBodyLines`, `detailBodyLines`, `searchBodyLin
 | 5c — Cost/usage stats panel | ✅ Complete (`stats.go`, `S` from list mode) |
 | 6 — Repo split into `github.com/zpenka/lore` | ✅ Done (this is that repo) |
 | 7 — Quality-of-life | ✅ Complete (back-nav, re-run return-to-list, turn indicator, configurable projects dir, sidechain handling) |
+| v0.7 — Cleanup pass | ✅ Complete (unified footers/headers, DRY filter, layout constants, dead-code removal, missing unit tests, scan warnings) |
+| v0.7 — Bookmarks (2A) | ✅ Complete (`bookmark.go`, `m`/`M` keys, ★ markers in list/search/project) |
+| v0.7 — Timeline heatmap (2B) | ✅ Complete (`timeline.go`, `T` key, enter filters list to a day) |
 
 ## Repo Layout
 
@@ -219,20 +238,22 @@ lore/
 ├── go.mod, go.sum
 ├── lore.go             # Entry point, Run(), resolveProjectsDir()
 ├── model.go            # Bubble Tea model + per-mode key dispatchers
-├── render.go           # View(), per-mode renderers, help overlay, Lipgloss styles
-├── session.go          # Session struct, scanSessions(), parseSessionMetadata()
-├── detail.go           # Mode constants, turn struct, JSONL → turns parser, sidechain linking
+├── render.go           # View(), per-mode header/footer/body renderers, help overlay, Lipgloss styles, layout constants
+├── session.go          # Session struct, scanSessions() (sessions, warnings, err), parseSessionMetadata()
+├── detail.go           # Mode constants (incl. modeTimeline), turn struct, JSONL → turns parser, sidechain linking
 ├── search.go           # Linear-scan full-text search (fallback path)
 ├── index.go            # SQLite FTS5 search index (Phase 5a)
 ├── stats.go            # Token-usage parsing + cost estimation (Phase 5c)
 ├── project.go          # Branch grouping + project view rendering
-├── filter.go           # Fuzzy-ranked p/b/f inline filter
+├── filter.go           # fuzzyFilterCandidates + fuzzyFilterSessions helper
+├── bookmark.go         # Bookmarks JSON storage (load/save/toggle) — v0.7
+├── timeline.go         # Heatmap grid + buildHeatmap + heatmapBucket — v0.7
 ├── clipboard.go        # pbcopy / wl-copy / xclip wrapper
 ├── rerun.go            # tea.ExecProcess wrapper for the claude child process
 ├── viewport.go         # clampOffset() + sliceLines() scrolling primitives
 ├── wrap.go             # wrapText() for multi-line turn bodies
-├── bucket.go           # timeBucket(), relative-time grouping
-├── *_test.go           # Unit and smoke tests
+├── bucket.go           # timeBucket(), startOfDay(), relative-time grouping
+├── *_test.go           # Unit and smoke tests (incl. bookmark_test.go, timeline_test.go)
 ├── .github/
 │   ├── pull_request_template.md
 │   └── workflows/ci.yml
@@ -244,10 +265,10 @@ lore/
 
 ### Add a new key binding
 
-1. Identify which mode owns the key. Edit the matching `handle*Key` method in `model.go` (`handleListKey`, `handleDetailKey`, `handleSearchKey`, `handleProjectKey`, `handleRerunKey`).
+1. Identify which mode owns the key. Edit the matching `handle*Key` method in `model.go` (`handleListKey`, `handleDetailKey`, `handleSearchKey`, `handleProjectKey`, `handleRerunKey`, `handleStatsKey`, `handleTimelineKey`).
 2. Update the relevant `renderHelpOverlay` block in `render.go` so the `?` overlay matches.
 3. If the key affects the footer, update the corresponding `render*Footer` in `render.go` / `project.go`.
-4. Test via the matching `TestModel_*` test in `model_test.go` (or the per-feature test file: `search_test.go`, `project_test.go`, `rerun_test.go`, etc.).
+4. Test via the matching `TestModel_*` test in `model_test.go` (or the per-feature test file: `search_test.go`, `project_test.go`, `rerun_test.go`, `bookmark_test.go`, `timeline_test.go`, etc.).
 
 ### Change a view's display
 
