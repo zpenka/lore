@@ -12,8 +12,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Version is the lore binary version. Bumped manually until we wire releases.
-const Version = "0.5.0"
+// Version is the lore binary version. Set at build time via ldflags by GoReleaser;
+// falls back to the literal below for local builds.
+var Version = "0.7.0"
 
 // Run is the entry point used by cmd/lore/main.go.
 func Run() error {
