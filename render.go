@@ -325,7 +325,7 @@ func renderDetailFooter(m model) string {
 		copyStatus = "  ✓ copied"
 	}
 	return footerStyle.Render(fmt.Sprintf(
-		" j/k move   d/u page   g/G top/bottom   space expand   y copy   r run   q/esc/h/← back%s",
+		" j/k move   d/u page   g/G top/bottom   space expand   y copy   r run   m bookmark   / search   ? help   q/esc/h/← back%s",
 		copyStatus))
 }
 
@@ -421,7 +421,7 @@ func renderListFooter(m model) string {
 			return footerStyle.Render(fmt.Sprintf(" fuzzy filter: %s   j/k · enter open · esc clear   q quit", m.filterText))
 		}
 	}
-	return footerStyle.Render(" j/k move   d/u page   enter open   / search   p filter project   b filter branch   f fuzzy   P project view   S usage stats   g/G top/bottom   q quit")
+	return footerStyle.Render(" j/k move   d/u page   enter open   / search   p project   b branch   f fuzzy   m bookmark   M bookmarks   T timeline   P project view   S stats   g/G top/bottom   ? help   q quit")
 }
 
 // padTrunc trims s to max display columns or right-pads it to fit.
@@ -527,7 +527,7 @@ func renderSearchFooter(m model) string {
 	if m.searchMode == searchModeEntry {
 		return footerStyle.Render(" search: " + m.searchQuery + "_   [enter] run   [esc] cancel")
 	}
-	return footerStyle.Render(" j/k move   d/u page   enter open   / new search   g/G top/bottom   q/esc/h/← back")
+	return footerStyle.Render(" j/k move   d/u page   enter open   / new search   g/G top/bottom   ? help   q/esc/h/← back")
 }
 
 // ----- re-run -----
@@ -585,7 +585,7 @@ func renderRerunFooter(m model) string {
 	if m.flashMsg != "" {
 		return flashStyle.Render(" " + m.flashMsg)
 	}
-	return footerStyle.Render(" enter run   q/esc/h/← back")
+	return footerStyle.Render(" enter run   ? help   q/esc/h/← back")
 }
 
 // extractToolName extracts the tool name from the tool body string.
@@ -928,7 +928,7 @@ func renderStatsFooter(m model) string {
 	if m.flashMsg != "" {
 		return flashStyle.Render(" " + m.flashMsg)
 	}
-	return footerStyle.Render(" j/k move   d/u page   g/G top/bottom   q/esc/h/← back")
+	return footerStyle.Render(" j/k move   d/u page   g/G top/bottom   ? help   q/esc/h/← back")
 }
 
 // ----- timeline mode -----
@@ -973,7 +973,7 @@ func renderTimelineFooter(m model) string {
 	hm := buildHeatmap(m.sessions, time.Now())
 	count := hm.countOn(m.timelineCursor)
 	dateStr := m.timelineCursor.Format("2006-01-02 (Mon)")
-	hint := footerStyle.Render(" h/← l/→ move day   enter filter list   q/esc back")
+	hint := footerStyle.Render(" h/← l/→ move day   enter filter list   ? help   q/esc back")
 	info := footerStyle.Render(fmt.Sprintf(" %s   %d session%s", dateStr, count, plural(count)))
 	return info + "\n" + hint
 }

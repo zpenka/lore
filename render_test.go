@@ -183,11 +183,11 @@ func TestRenderFooter_DefaultFooter(t *testing.T) {
 	if !strings.Contains(out, "j/k move") {
 		t.Errorf("default footer missing 'j/k move':\n%s", out)
 	}
-	if !strings.Contains(out, "p filter project") {
-		t.Errorf("default footer missing 'p filter project':\n%s", out)
+	if !strings.Contains(out, "p project") {
+		t.Errorf("default footer missing 'p project':\n%s", out)
 	}
-	if !strings.Contains(out, "b filter branch") {
-		t.Errorf("default footer missing 'b filter branch':\n%s", out)
+	if !strings.Contains(out, "b branch") {
+		t.Errorf("default footer missing 'b branch':\n%s", out)
 	}
 }
 
