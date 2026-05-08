@@ -1,0 +1,57 @@
+version: 2
+
+project_name: lore
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: lore
+    main: ./cmd/lore
+    binary: lore
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/zpenka/lore.Version={{.Version}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+brews:
+  - name: lore
+    repository:
+      owner: zpenka
+      name: homebrew-lore
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/zpenka/lore
+    description: Keyboard-driven TUI for browsing Claude Code session history
+    license: MIT
+    install: bin.install "lore"
+    test: system "#{bin}/lore", "--version"

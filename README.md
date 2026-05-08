@@ -5,7 +5,10 @@ A keyboard-driven TUI for browsing Claude Code session history.
 ## Quick start
 
 ```bash
-# Install
+# Install via Homebrew (macOS / Linux)
+brew install zpenka/lore/lore
+
+# Or install via Go toolchain
 go install github.com/zpenka/lore/cmd/lore@latest
 
 # Or build from source
