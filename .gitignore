@@ -9,3 +9,6 @@ cov.out
 
 # Built binaries.
 /lore
+
+# Deciduous database (local)
+.deciduous/
