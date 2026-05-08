@@ -205,7 +205,7 @@ Tests import `bubbletea` directly to send messages (e.g., `keyMsg()`) to the mod
 
 `View()` dispatches by `m.mode` to the per-mode renderer. Each renderer follows the same shape: header, divider, body lines (sliced through `clampOffset` + `sliceLines` from `viewport.go`), divider, footer. The `?` help overlay short-circuits the entire view.
 
-Every mode has dedicated `render*Header` and `render*Footer` functions (no inline header/footer construction inside the View renderer). Footer hints follow a uniform `key action` format separated by three spaces; sub-views all show `q/esc/h/← back`, while the list shows `q quit`. Flash messages are rendered through one path in every footer (precedence over hints).
+Every mode has dedicated `render*Header` and `render*Footer` functions (no inline header/footer construction inside the View renderer). Footer hints follow a uniform `key action` format separated by three spaces; every footer includes `? help` so the overlay is discoverable; sub-views also show `q/esc/h/← back`, while the list shows `q quit`. Flash messages are rendered through one path in every footer (precedence over hints).
 
 Styling is done via Lipgloss `NewStyle()` instances defined at the top of `render.go`. Layout constants (`projectColWidth`, `branchColWidth`, `fixedCols`, `rerunMaxLines`, `snippetMaxLen`) are package-level so list and search rows render identical column widths.
 
