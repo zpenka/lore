@@ -2,32 +2,30 @@
 
 A keyboard-driven TUI for browsing Claude Code session history.
 
-## Quick start
+## Install
 
 ```bash
-# Install via Homebrew (macOS / Linux)
 brew install zpenka/lore/lore
-
-# Or install via Go toolchain
-go install github.com/zpenka/lore/cmd/lore@latest
-
-# Or build from source
-go build ./cmd/lore
-./lore
 ```
 
-The tool reads session transcripts from `~/.claude/projects/` and displays them in a sortable, navigable list.
+Requires [Claude Code](https://claude.ai/code) — lore reads the session transcripts it writes to `~/.claude/projects/`.
 
-**Current status (v0.7.0)**: All planned phases plus the v0.7 cleanup and feature pass complete — session list with query preview (first user message) and project/branch/fuzzy filters, session detail with tool expansion / diff rendering / turn position indicator / sidechain expansion, FTS5-indexed full-text search (with linear-scan fallback), project view, re-run (returns to list on exit), half-page scrolling (`d`/`u`) in all modes, a usage-stats panel showing token counts and estimated cost per session, **session bookmarks** with `★` markers and a bookmark-only filter, and a **timeline activity heatmap** showing 8 weeks of session activity. The render code was unified in v0.7: every mode goes through dedicated `render*Header` / `render*Footer` functions, footer hints and back-nav are consistent across all sub-views, and skipped sessions are surfaced in the list header as "(N skipped)". See `DESIGN.md` for the full vision and roadmap.
+**Alternative (Go toolchain):**
+```bash
+go install github.com/zpenka/lore/cmd/lore@latest
+```
 
-## Configuration
+## What it does
 
-`lore` reads sessions from `~/.claude/projects/` by default. Override with either:
+`lore` gives you a fast, keyboard-driven interface to browse, search, and re-run your Claude Code sessions:
 
-- `--dir <path>` flag (highest precedence)
-- `LORE_PROJECTS_DIR` environment variable
-
-The FTS5 search index and the bookmarks file (`bookmarks.json`) are cached under the platform-appropriate user cache dir (e.g. `~/.cache/lore/` on Linux, `~/Library/Caches/lore/` on macOS).
+- **Session list** with relative-time bucketing, project/branch/fuzzy filters, and bookmark support
+- **Session detail** with collapsible tool turns, diff rendering for edits, and sidechain expansion for Agent turns
+- **Full-text search** backed by SQLite FTS5 (linear-scan fallback)
+- **Project view** grouped by branch
+- **Re-run** — replay any user prompt in the original working directory
+- **Usage stats** — token counts and estimated cost per session
+- **Timeline heatmap** — 8-week activity grid; click a day to filter the list
 
 ## Navigation
 
@@ -41,12 +39,17 @@ Press `?` in any mode for the full keymap. Highlights:
 - **Stats**: `j`/`k`, `g`/`G` to navigate; `esc`/`q`/`h`/`←` back. Columns: project · branch · model · input/output tokens · estimated cost.
 - **Timeline**: `h`/`←` and `l`/`→` move the cursor across days in an 8-week activity heatmap; `enter` filters the list to the highlighted day; `esc`/`q` back.
 
+## Configuration
+
+`lore` reads sessions from `~/.claude/projects/` by default. Override with either:
+
+- `--dir <path>` flag (highest precedence)
+- `LORE_PROJECTS_DIR` environment variable
+
+The FTS5 search index and bookmarks file are cached under the platform user cache dir (`~/.cache/lore/` on Linux, `~/Library/Caches/lore/` on macOS).
+
 ## For contributors
 
-See `CLAUDE.md` for:
-- Development setup and test commands
-- Architecture overview
-- TDD requirements (red → green → refactor)
-- Agent contract for future work
+See `CLAUDE.md` for development setup, architecture, TDD requirements, and the agent contract.
 
-Full product vision and design roadmap: `DESIGN.md`
+Full product vision and roadmap: `DESIGN.md`
