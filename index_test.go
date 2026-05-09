@@ -449,6 +449,35 @@ func TestExtractSessionText_SkipsThinking(t *testing.T) {
 	}
 }
 
+// ----- Task 7: extractSessionText assistant text block path -----
+
+func TestExtractSessionText_AssistantTextBlock(t *testing.T) {
+	content := `{"type":"assistant","message":{"content":[{"type":"text","text":"hello world"}]}}
+`
+	text, err := extractSessionText([]byte(content))
+	if err != nil {
+		t.Fatalf("extractSessionText: %v", err)
+	}
+	if !containsSubstr(text, "hello world") {
+		t.Errorf("extractSessionText should contain 'hello world', got: %q", text)
+	}
+}
+
+func TestExtractSessionText_AssistantSkipsThinkingAndToolUse(t *testing.T) {
+	content := `{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"private"},{"type":"tool_use","name":"Bash","input":{}},{"type":"text","text":"visible"}]}}
+`
+	text, err := extractSessionText([]byte(content))
+	if err != nil {
+		t.Fatalf("extractSessionText: %v", err)
+	}
+	if !containsSubstr(text, "visible") {
+		t.Errorf("extractSessionText should contain 'visible', got: %q", text)
+	}
+	if containsSubstr(text, "private") {
+		t.Errorf("extractSessionText should NOT contain thinking block 'private', got: %q", text)
+	}
+}
+
 // containsSubstr is a simple case-insensitive substring check helper.
 func containsSubstr(s, sub string) bool {
 	if len(sub) == 0 {
