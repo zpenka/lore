@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **lore** is a keyboard-driven TUI (Terminal User Interface) for browsing Claude Code session history. It reads session transcripts from `~/.claude/projects/<encoded-cwd>/*.jsonl` and provides rich navigation, filtering, and search across sessions.
 
-Current status: **v0.8.0 — All planned phases plus the v0.8 playbook complete.** Implemented:
+Current status: **v0.9.0 — All planned phases plus the v0.9 quality pass complete.** Implemented:
 
 - Session list (3.1) with relative-time bucketing and query preview (first user message).
 - Inline project (`p`), branch (`b`), and fuzzy (`f`) filters with fuzzy ranking (DRY'd in v0.7 around a single `fuzzyFilterSessions` helper).
@@ -27,6 +27,7 @@ Current status: **v0.8.0 — All planned phases plus the v0.8 playbook complete.
 - **v0.8 env vars**: `LORE_CACHE_DIR` overrides cache location; `LORE_PRICING_FILE` overrides the embedded `pricing.json` rates.
 - **v0.8 features**: `R` resumes a session via `claude --resume <id>`; FTS5 index syncs in the background at startup (list header shows `indexing…`); search accepts `project:<name>` and `branch:<name>` prefix filters.
 - **v0.8 quality**: fuzz targets for `parseSessionMetadata` and `parseTurnsFromJSONL` run 30s per push in CI.
+- **v0.9 quality**: `truncate`/`truncatePromptLine` merged into `truncateRunes` helper in `wrap.go`; `padTrunc` is now rune-safe (multibyte UTF-8 names no longer corrupt columns); list footer shows active-filter state (`bookmarkOnly` → `"bookmarks only   esc clear"`, `dateFilter` → date + `"esc clear"`); direct tests added for `computeStatsRows`, `loadSessionDetailCmd`, `ensureIndex`, `handleSearchEntryKey` FTS5 path, `searchSessionsFiltered` branch-only and empty cases, `extractSessionText` assistant text blocks, and all edge branches of `latestDay`/`truncate`/`truncatePromptLine`.
 
 See `DESIGN.md` for the full product vision and phasing roadmap.
 
@@ -168,10 +169,10 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `f`: Fuzzy filter across slug, project, and branch simultaneously.
 - `m`: Bookmark / unbookmark the selected session (persists to disk).
 - `R`: Resume the selected session (`claude --resume <id>`).
-- `M`: Toggle bookmark-only filter (binary; composes with the fuzzy filters).
+- `M`: Toggle bookmark-only filter (binary; composes with the fuzzy filters). When active, the footer shows `"bookmarks only   esc clear   q quit"`.
 - `P`: Open the project view scoped to the selected session's CWD.
 - `S`: Open the usage stats panel.
-- `T`: Open the timeline activity heatmap.
+- `T`: Open the timeline activity heatmap. Pressing `enter` on a day sets a date filter; the footer then shows the filtered date and `"esc clear"`.
 - `/`: Enter full-text search.
 - `esc`: Clear any applied filter (fuzzy / bookmark-only / date).
 - `?`: Show help overlay.
@@ -243,6 +244,14 @@ Body math goes through one of `listBodyLines`, `detailBodyLines`, `searchBodyLin
 | v0.8 — Fuzz targets in CI (T8) | ✅ Complete (`FuzzParseSessionMetadata`, `FuzzParseTurnsFromJSONL`; non-blocking fuzz CI job) |
 | v0.8 — Regression test nets (T9) | ✅ Complete (`internal_split_test.go`, `internal_render_split_test.go`, `nav_test.go`) |
 | v0.8 — Docs + version bump (T10) | ✅ Complete (CLAUDE.md, README.md, DESIGN.md updated; Version = "0.8.0") |
+| v0.9 — `latestDay`/`truncate`/`truncatePromptLine` edge coverage (T1) | ✅ Complete (tests + refactor: `truncateRunes` in `wrap.go`) |
+| v0.9 — `computeStatsRows` + `loadSessionDetailCmd` direct tests (T2) | ✅ Complete |
+| v0.9 — `ensureIndex` + `handleSearchEntryKey` FTS5 coverage (T3) | ✅ Complete |
+| v0.9 — `searchSessionsFiltered` branch-only + empty paths (T4) | ✅ Complete |
+| v0.9 — Active-filter footer hints for `bookmarkOnly` + `dateFilter` (T5) | ✅ Complete (`render_list.go`; footer shows state + `"esc clear"`) |
+| v0.9 — `padTrunc` rune-safe (T6) | ✅ Complete (rewritten with `[]rune` in `render.go`) |
+| v0.9 — `extractSessionText` assistant text block path (T7) | ✅ Complete |
+| v0.9 — Docs + version bump (T8) | ✅ Complete (CLAUDE.md, README.md, DESIGN.md updated; Version = "0.9.0") |
 
 ## Repo Layout
 

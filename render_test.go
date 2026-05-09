@@ -1163,3 +1163,75 @@ func TestListHeader_OmitsSkippedWhenNoWarnings(t *testing.T) {
 		t.Errorf("list header without warnings should not mention 'skipped', got: %q", out)
 	}
 }
+
+// ----- truncatePromptLine edge branch (Task 1) -----
+
+func TestTruncatePromptLine_MaxOne(t *testing.T) {
+	// max=1: only one rune fits, no room for ellipsis
+	got := truncatePromptLine("hello", 1)
+	if got != "h" {
+		t.Errorf("truncatePromptLine(%q, 1) = %q, want %q", "hello", got, "h")
+	}
+}
+
+// ----- Task 5: list footer active-filter hints -----
+
+func TestListFooter_ShowsBookmarkOnlyActiveHint(t *testing.T) {
+	m := loadedModelWith(Session{Project: "p", Slug: "s", Timestamp: time.Now()})
+	m.bookmarkOnly = true
+	out := renderListFooter(m)
+	if !strings.Contains(out, "bookmarks") {
+		t.Errorf("bookmarkOnly footer should contain 'bookmarks', got: %q", out)
+	}
+	if !strings.Contains(out, "esc") {
+		t.Errorf("bookmarkOnly footer should contain 'esc', got: %q", out)
+	}
+}
+
+func TestListFooter_ShowsDateFilterActiveHint(t *testing.T) {
+	m := loadedModelWith(Session{Project: "p", Slug: "s", Timestamp: time.Now()})
+	m.dateFilter = time.Date(2026, 5, 9, 0, 0, 0, 0, time.UTC)
+	out := renderListFooter(m)
+	if !strings.Contains(out, "2026-05-09") {
+		t.Errorf("dateFilter footer should contain '2026-05-09', got: %q", out)
+	}
+	if !strings.Contains(out, "esc") {
+		t.Errorf("dateFilter footer should contain 'esc', got: %q", out)
+	}
+}
+
+// ----- Task 6: padTrunc rune-safety -----
+
+func TestPadTrunc_MultibyteTruncate(t *testing.T) {
+	// "日本語テスト" = 6 runes, each 3 bytes = 18 bytes total
+	// padTrunc with max=4 should give 3 visible runes + "…" = 4 total rune-length
+	result := padTrunc("日本語テスト", 4)
+	runes := []rune(result)
+	if len(runes) != 4 {
+		t.Fatalf("padTrunc multibyte truncate: rune length = %d, want 4 (got %q)", len(runes), result)
+	}
+	if string(runes[3]) != "…" {
+		t.Errorf("padTrunc multibyte truncate: last rune should be '…', got %q", string(runes[3]))
+	}
+}
+
+func TestPadTrunc_MultibyteExact(t *testing.T) {
+	// "日本" = 2 runes, 6 bytes; padTrunc with max=2 is exact fit → no truncation
+	result := padTrunc("日本", 2)
+	if result != "日本" {
+		t.Errorf("padTrunc(%q, 2) = %q, want %q", "日本", result, "日本")
+	}
+	// "日本語" = 3 runes, max=2 → should truncate to "日…"
+	result2 := padTrunc("日本語", 2)
+	if result2 != "日…" {
+		t.Errorf("padTrunc(%q, 2) = %q, want %q", "日本語", result2, "日…")
+	}
+}
+
+func TestPadTrunc_ASCII(t *testing.T) {
+	// ASCII "hi" with max=6 should pad to "hi    " (4 spaces)
+	result := padTrunc("hi", 6)
+	if result != "hi    " {
+		t.Errorf("padTrunc(%q, 6) = %q, want %q", "hi", result, "hi    ")
+	}
+}

@@ -233,13 +233,8 @@ func renderWriteDiff(input map[string]interface{}, cont string, avail int) []str
 	return out
 }
 
+// truncatePromptLine limits s to maxLen runes with "…" if truncated.
+// Delegates to truncateRunes (wrap.go) which is the canonical implementation.
 func truncatePromptLine(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s
-	}
-	if maxLen <= 1 {
-		return string(runes[:maxLen])
-	}
-	return string(runes[:maxLen-1]) + "…"
+	return truncateRunes(s, maxLen)
 }

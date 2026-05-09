@@ -80,6 +80,12 @@ func renderListFooter(m model) string {
 	if m.flashMsg != "" {
 		return flashStyle.Render(" " + m.flashMsg)
 	}
+	if m.bookmarkOnly {
+		return footerStyle.Render(" bookmarks only   esc clear   q quit")
+	}
+	if !m.dateFilter.IsZero() {
+		return footerStyle.Render(" date: " + m.dateFilter.Format("2006-01-02") + "   esc clear   q quit")
+	}
 	if m.filterMode == filterModeProject {
 		return footerStyle.Render(fmt.Sprintf(" project filter: %s_  [enter] apply  [esc] cancel", m.filterText))
 	}

@@ -14,7 +14,7 @@ import (
 
 // Version is the lore binary version. Set at build time via ldflags by GoReleaser;
 // falls back to the literal below for local builds.
-var Version = "0.8.0"
+var Version = "0.9.0"
 
 // Run is the entry point used by cmd/lore/main.go.
 func Run() error {

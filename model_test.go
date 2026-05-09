@@ -165,6 +165,72 @@ func TestLoadSessionsCmd(t *testing.T) {
 	}
 }
 
+func TestLoadSessionDetailCmd_ReturnsSessionDetailLoadedMsg(t *testing.T) {
+	// Write a minimal valid JSONL to a temp file
+	jsonl := `{"type":"user","sessionId":"abc123","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"test-session","message":{"content":"hello world"}}
+`
+	tmp := t.TempDir()
+	fpath := filepath.Join(tmp, "sess.jsonl")
+	if err := os.WriteFile(fpath, []byte(jsonl), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	cmd := loadSessionDetailCmd(fpath)
+	if cmd == nil {
+		t.Fatal("loadSessionDetailCmd returned nil cmd")
+	}
+	msg := cmd()
+	result, ok := msg.(sessionDetailLoadedMsg)
+	if !ok {
+		t.Fatalf("loadSessionDetailCmd produced %T, want sessionDetailLoadedMsg", msg)
+	}
+	if result.err != nil {
+		t.Fatalf("loadSessionDetailCmd error: %v", result.err)
+	}
+	if result.turns == nil {
+		t.Error("turns should be non-nil for a valid session")
+	}
+}
+
+func TestEnsureIndex_OpensIndexWhenNilAndDirIsSet(t *testing.T) {
+	// Override cache dir so we don't pollute the real cache
+	t.Setenv("LORE_CACHE_DIR", t.TempDir())
+
+	m := newModel(t.TempDir()) // projectsDir is set
+	m.loading = false
+	m.index = nil
+	m.indexing = false // override: not in background sync
+
+	got := m.ensureIndex()
+	if got.index == nil {
+		t.Error("ensureIndex() should have opened the index when index==nil and indexing==false")
+	}
+	if got.index != nil {
+		got.index.Close()
+	}
+}
+
+func TestHandleSearchEntryKey_UsesFTS5WhenIndexPresent(t *testing.T) {
+	// Open a real in-memory-backed index (empty db)
+	idx, err := OpenIndex(t.TempDir())
+	if err != nil {
+		t.Fatalf("OpenIndex: %v", err)
+	}
+	defer idx.Close()
+
+	m := loadedModel("a", "b")
+	m.mode = modeSearch
+	m.searchMode = searchModeEntry
+	m.index = idx
+	m.searchQuery = "hello"
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	nm := next.(model)
+	if nm.searchMode != searchModeResults {
+		t.Errorf("after enter with FTS5 index present, searchMode = %d, want searchModeResults (%d)", nm.searchMode, searchModeResults)
+	}
+}
+
 func TestModel_ProjectFilterEntry_PressP(t *testing.T) {
 	m := loadedModel("a", "b")
 	next, _ := m.Update(keyMsg("p"))

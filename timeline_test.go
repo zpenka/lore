@@ -243,3 +243,20 @@ func TestRenderTimelineView_FooterShowsHighlightedDate(t *testing.T) {
 		t.Errorf("timeline footer should show highlighted date %q:\n%s", want, out)
 	}
 }
+
+// ----- latestDay -----
+
+func TestHeatmap_LatestDay(t *testing.T) {
+	// now = 2026-05-15 (Friday)
+	// mondayOf(2026-05-15) = 2026-05-11
+	// earliest = 2026-05-11 - 49 days = 2026-03-23
+	// rightmost column Monday = 2026-05-11
+	// row 6 (Sunday) of rightmost column = 2026-05-11 + 6 = 2026-05-17
+	now := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
+	hm := buildHeatmap(nil, now)
+	got := hm.latestDay()
+	want := time.Date(2026, 5, 17, 0, 0, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Errorf("latestDay() = %v, want %v", got, want)
+	}
+}

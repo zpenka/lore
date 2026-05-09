@@ -135,13 +135,14 @@ func plural(n int) string {
 }
 
 func padTrunc(s string, max int) string {
-	if len(s) > max {
-		if max <= 1 {
-			return s[:max]
-		}
-		return s[:max-1] + "…"
+	r := []rune(s)
+	if len(r) <= max {
+		return s + strings.Repeat(" ", max-len(r))
 	}
-	return s + strings.Repeat(" ", max-len(s))
+	if max <= 1 {
+		return string(r[:max])
+	}
+	return string(r[:max-1]) + "…"
 }
 
 func renderHelpOverlay(m model) string {

@@ -9,6 +9,17 @@ import (
 	"testing"
 )
 
+func TestVersion_IsV090(t *testing.T) {
+	var buf bytes.Buffer
+	if err := runWith([]string{"-v"}, &buf); err != nil {
+		t.Fatalf("runWith(-v): %v", err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "0.9.0") {
+		t.Errorf("version output = %q, want it to contain '0.9.0'", got)
+	}
+}
+
 func TestDefaultProjectsDir(t *testing.T) {
 	dir, err := defaultProjectsDir()
 	if err != nil {
