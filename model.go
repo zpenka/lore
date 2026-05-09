@@ -30,6 +30,12 @@ type sessionDetailLoadedMsg struct {
 	err   error
 }
 
+// indexReadyMsg is dispatched when the background FTS5 sync completes.
+type indexReadyMsg struct {
+	idx *Index
+	err error
+}
+
 // model is the Bubble Tea state for the session-list and detail panels.
 type model struct {
 	projectsDir       string
@@ -96,8 +102,11 @@ type model struct {
 	// Sidechain turns loaded on demand when expanding Agent tool turns
 	sidechainTurns map[int][]turn
 
-	// FTS5 search index (nil until first search; fallback to linear scan if nil)
-	index *Index
+	// FTS5 search index. Set by the background sync launched in Init(); nil
+	// until the sync completes. Falls back to ensureIndex() (on-demand) and
+	// linear scan when nil.
+	index    *Index
+	indexing bool // true while the background sync is in flight
 
 	// warnings are short messages produced during session scan for files
 	// that were skipped (unreadable, malformed, no user event). Surfaced
@@ -127,6 +136,7 @@ func newModel(projectsDir string) model {
 	return model{
 		projectsDir:   projectsDir,
 		loading:       true,
+		indexing:      true,
 		expandedTurns: make(map[int]bool),
 		justCopied:    false,
 		clipboardFn:   copyToClipboard, // Default to real implementation
@@ -138,7 +148,30 @@ func newModel(projectsDir string) model {
 }
 
 func (m model) Init() tea.Cmd {
-	return loadSessionsCmd(m.projectsDir)
+	return tea.Batch(loadSessionsCmd(m.projectsDir), syncIndexCmd(m.projectsDir))
+}
+
+// syncIndexCmd opens and syncs the FTS5 index in the background, dispatching
+// indexReadyMsg when done. Best-effort: errors are carried in the message and
+// leave m.index nil (ensureIndex on-demand remains the fallback).
+func syncIndexCmd(projectsDir string) tea.Cmd {
+	return func() tea.Msg {
+		if projectsDir == "" {
+			return indexReadyMsg{}
+		}
+		cacheDir, err := indexCacheDir()
+		if err != nil {
+			return indexReadyMsg{err: err}
+		}
+		idx, err := OpenIndex(filepath.Dir(cacheDir))
+		if err != nil {
+			return indexReadyMsg{err: err}
+		}
+		if syncErr := idx.Sync(projectsDir); syncErr != nil {
+			return indexReadyMsg{err: syncErr}
+		}
+		return indexReadyMsg{idx: idx}
+	}
 }
 
 // Offset-update helpers, called from key handlers after a cursor move so
@@ -197,9 +230,10 @@ func (m model) clampStatsOffsetNow() model {
 }
 
 // ensureIndex opens the FTS5 index on first use and runs an initial Sync.
+// No-op if the index is already set or if the background sync is still in flight.
 // Best-effort: returns the model unchanged if the index can't be opened.
 func (m model) ensureIndex() model {
-	if m.index != nil || m.projectsDir == "" {
+	if m.index != nil || m.indexing || m.projectsDir == "" {
 		return m
 	}
 	cacheDir, err := indexCacheDir()
@@ -251,6 +285,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		return m, nil
+
+	case indexReadyMsg:
+		m.indexing = false
+		if msg.err == nil && msg.idx != nil {
+			m.index = msg.idx
+		}
 		return m, nil
 
 	case rerunDoneMsg:

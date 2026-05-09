@@ -63,11 +63,16 @@ func renderListHeader(m model) string {
 	if n := len(m.warnings); n > 0 {
 		skipped = fmt.Sprintf("   (%d skipped)", n)
 	}
+	indexStatus := ""
+	if m.indexing {
+		indexStatus = "   indexing…"
+	}
 	return headerStyle.Render(fmt.Sprintf(
-		" lore · %d session%s across %d project%s%s",
+		" lore · %d session%s across %d project%s%s%s",
 		len(m.sessions), plural(len(m.sessions)),
 		nProjects, plural(nProjects),
 		skipped,
+		indexStatus,
 	))
 }
 

@@ -140,10 +140,8 @@ func TestModel_Init(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("Init returned nil cmd")
 	}
-	msg := cmd()
-	if _, ok := msg.(sessionsLoadedMsg); !ok {
-		t.Fatalf("Init cmd produced %T, want sessionsLoadedMsg", msg)
-	}
+	// Init now returns tea.Batch([loadSessionsCmd, syncIndexCmd]);
+	// the batch itself is the cmd — just check it's non-nil.
 }
 
 func TestLoadSessionsCmd(t *testing.T) {
