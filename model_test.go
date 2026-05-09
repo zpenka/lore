@@ -1271,3 +1271,27 @@ func TestModel_Detail_PressH_InFilterEntry_TypesH(t *testing.T) {
 		t.Errorf("after 'h' in filter entry: mode = %d, want %d (modeList, should not change)", m.mode, modeList)
 	}
 }
+
+func TestEnsureIndex_IdempotentWhenAlreadySet(t *testing.T) {
+	m := newModel("/tmp")
+	m.loading = false
+
+	// Pre-set a sentinel index to verify ensureIndex is a no-op when already set.
+	sentinel := &Index{}
+	m.index = sentinel
+
+	m2 := m.ensureIndex()
+	if m2.index != sentinel {
+		t.Error("ensureIndex overwrote existing index; should be a no-op when index != nil")
+	}
+}
+
+func TestEnsureIndex_SkipsWhenNoDirSet(t *testing.T) {
+	m := newModel("")
+	m.loading = false
+	m.index = nil
+
+	m2 := m.ensureIndex()
+	// With empty projectsDir, no index should be opened (best-effort, no panic).
+	_ = m2
+}
