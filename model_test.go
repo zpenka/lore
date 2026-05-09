@@ -192,6 +192,45 @@ func TestLoadSessionDetailCmd_ReturnsSessionDetailLoadedMsg(t *testing.T) {
 	}
 }
 
+func TestEnsureIndex_OpensIndexWhenNilAndDirIsSet(t *testing.T) {
+	// Override cache dir so we don't pollute the real cache
+	t.Setenv("LORE_CACHE_DIR", t.TempDir())
+
+	m := newModel(t.TempDir()) // projectsDir is set
+	m.loading = false
+	m.index = nil
+	m.indexing = false // override: not in background sync
+
+	got := m.ensureIndex()
+	if got.index == nil {
+		t.Error("ensureIndex() should have opened the index when index==nil and indexing==false")
+	}
+	if got.index != nil {
+		got.index.Close()
+	}
+}
+
+func TestHandleSearchEntryKey_UsesFTS5WhenIndexPresent(t *testing.T) {
+	// Open a real in-memory-backed index (empty db)
+	idx, err := OpenIndex(t.TempDir())
+	if err != nil {
+		t.Fatalf("OpenIndex: %v", err)
+	}
+	defer idx.Close()
+
+	m := loadedModel("a", "b")
+	m.mode = modeSearch
+	m.searchMode = searchModeEntry
+	m.index = idx
+	m.searchQuery = "hello"
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	nm := next.(model)
+	if nm.searchMode != searchModeResults {
+		t.Errorf("after enter with FTS5 index present, searchMode = %d, want searchModeResults (%d)", nm.searchMode, searchModeResults)
+	}
+}
+
 func TestModel_ProjectFilterEntry_PressP(t *testing.T) {
 	m := loadedModel("a", "b")
 	next, _ := m.Update(keyMsg("p"))
