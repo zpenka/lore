@@ -537,3 +537,37 @@ func writeSearchFixture(t *testing.T, dir, name, project, branch, text string) {
 		t.Fatalf("writeSearchFixture: %v", err)
 	}
 }
+
+// ----- Task 4: searchSessionsFiltered branch-only and empty edge cases -----
+
+func TestSearchSessionsFiltered_BranchOnly(t *testing.T) {
+	// Two sessions on different branches; no text query — branch filter only.
+	sessions := []Session{
+		{ID: "1", Branch: "main"},
+		{ID: "2", Branch: "feat/other"},
+	}
+	results := searchSessionsFiltered(sessions, "", searchFilters{branch: "main"})
+	if len(results) != 1 {
+		t.Fatalf("branch-only filter: got %d results, want 1", len(results))
+	}
+	if results[0].Session.ID != "1" {
+		t.Errorf("branch-only filter: got session %q, want %q", results[0].Session.ID, "1")
+	}
+	if results[0].HitCount != 1 {
+		t.Errorf("branch-only filter: HitCount = %d, want 1", results[0].HitCount)
+	}
+}
+
+func TestSearchSessionsFiltered_EmptyEverything(t *testing.T) {
+	// No text, no filters: with empty text and empty filters, candidates = all
+	// sessions. The implementation returns all candidates as filter-only hits
+	// (HitCount=1 each). Verify no panic and consistent output.
+	sessions := []Session{
+		{ID: "1", Branch: "main"},
+	}
+	results := searchSessionsFiltered(sessions, "", searchFilters{})
+	// Current behavior: empty text + no filters → returns all candidates as hits.
+	if len(results) != 1 {
+		t.Errorf("empty everything: got %d results, want 1 (all sessions returned as hits)", len(results))
+	}
+}
