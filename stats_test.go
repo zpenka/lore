@@ -224,6 +224,45 @@ func TestFormatTokenCount(t *testing.T) {
 	}
 }
 
+// ----- computeStatsRows tests -----
+
+func TestComputeStatsRows_SumsTokensFromFile(t *testing.T) {
+	jsonl := `{"type":"assistant","message":{"model":"claude-sonnet-4-6","content":[],"usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+{"type":"assistant","message":{"model":"claude-sonnet-4-6","content":[],"usage":{"input_tokens":200,"output_tokens":75,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}
+`
+	tmp := t.TempDir()
+	fpath := tmp + "/sess.jsonl"
+	if err := os.WriteFile(fpath, []byte(jsonl), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	rows := computeStatsRows([]Session{{Path: fpath}})
+	if len(rows) != 1 {
+		t.Fatalf("computeStatsRows returned %d rows, want 1", len(rows))
+	}
+	if rows[0].Stats.InputTokens != 300 {
+		t.Errorf("InputTokens = %d, want 300", rows[0].Stats.InputTokens)
+	}
+	if rows[0].Stats.OutputTokens != 125 {
+		t.Errorf("OutputTokens = %d, want 125", rows[0].Stats.OutputTokens)
+	}
+	if rows[0].Stats.EstimatedCostUSD <= 0 {
+		t.Errorf("EstimatedCostUSD = %f, want > 0", rows[0].Stats.EstimatedCostUSD)
+	}
+}
+
+func TestComputeStatsRows_MissingFileProducesEmptyStats(t *testing.T) {
+	rows := computeStatsRows([]Session{{Path: "/nonexistent/path/sess.jsonl"}})
+	if len(rows) != 1 {
+		t.Fatalf("computeStatsRows returned %d rows, want 1", len(rows))
+	}
+	if rows[0].Stats.InputTokens != 0 {
+		t.Errorf("InputTokens = %d, want 0 for missing file", rows[0].Stats.InputTokens)
+	}
+	if rows[0].Stats.OutputTokens != 0 {
+		t.Errorf("OutputTokens = %d, want 0 for missing file", rows[0].Stats.OutputTokens)
+	}
+}
+
 // ----- LORE_PRICING_FILE override tests -----
 
 func TestEstimateCost_PricingFileOverride(t *testing.T) {

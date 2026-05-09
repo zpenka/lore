@@ -165,6 +165,33 @@ func TestLoadSessionsCmd(t *testing.T) {
 	}
 }
 
+func TestLoadSessionDetailCmd_ReturnsSessionDetailLoadedMsg(t *testing.T) {
+	// Write a minimal valid JSONL to a temp file
+	jsonl := `{"type":"user","sessionId":"abc123","timestamp":"2026-05-01T10:00:00Z","cwd":"/test","gitBranch":"main","slug":"test-session","message":{"content":"hello world"}}
+`
+	tmp := t.TempDir()
+	fpath := filepath.Join(tmp, "sess.jsonl")
+	if err := os.WriteFile(fpath, []byte(jsonl), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	cmd := loadSessionDetailCmd(fpath)
+	if cmd == nil {
+		t.Fatal("loadSessionDetailCmd returned nil cmd")
+	}
+	msg := cmd()
+	result, ok := msg.(sessionDetailLoadedMsg)
+	if !ok {
+		t.Fatalf("loadSessionDetailCmd produced %T, want sessionDetailLoadedMsg", msg)
+	}
+	if result.err != nil {
+		t.Fatalf("loadSessionDetailCmd error: %v", result.err)
+	}
+	if result.turns == nil {
+		t.Error("turns should be non-nil for a valid session")
+	}
+}
+
 func TestModel_ProjectFilterEntry_PressP(t *testing.T) {
 	m := loadedModel("a", "b")
 	next, _ := m.Update(keyMsg("p"))
