@@ -1024,3 +1024,23 @@ func timeFromString(s string) time.Time {
 	t, _ := time.Parse(time.RFC3339, s)
 	return t
 }
+
+// FuzzParseTurnsFromJSONL fuzz-tests the JSONL turn parser.
+// Seeds cover valid turns and common malformed inputs.
+func FuzzParseTurnsFromJSONL(f *testing.F) {
+	f.Add(`{"type":"user","message":{"content":"hello"}}`)
+	f.Add(`{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}`)
+	f.Add(``)
+	f.Add(`not json`)
+	f.Add("{\"type\":\"tool_use\",\"message\":{\"content\":[]}}\n{\"type\":\"user\"}")
+	f.Add(`{"type":"user","message":{"content":["array","of","strings"]}}`)
+
+	f.Fuzz(func(t *testing.T, data string) {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("parseTurnsFromJSONL panicked: %v", r)
+			}
+		}()
+		_, _ = parseTurnsFromJSONL(strings.NewReader(data))
+	})
+}

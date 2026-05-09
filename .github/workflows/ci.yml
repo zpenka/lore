@@ -56,3 +56,22 @@ jobs:
               exit failed
             }
           ' coverage.out
+
+  fuzz:
+    runs-on: ubuntu-latest
+    # Non-blocking job: fuzz failures don't gate merges until the targets have
+    # been green for a week; promote to required at that point.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Fuzz parseSessionMetadata (30s)
+        run: go test -fuzz=FuzzParseSessionMetadata -fuzztime=30s -run=^$ ./...
+
+      - name: Fuzz parseTurnsFromJSONL (30s)
+        run: go test -fuzz=FuzzParseTurnsFromJSONL -fuzztime=30s -run=^$ ./...
