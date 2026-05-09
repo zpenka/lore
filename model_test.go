@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1294,4 +1295,76 @@ func TestEnsureIndex_SkipsWhenNoDirSet(t *testing.T) {
 	m2 := m.ensureIndex()
 	// With empty projectsDir, no index should be opened (best-effort, no panic).
 	_ = m2
+}
+
+// ----- Task 8: background FTS5 sync tests -----
+
+func TestInit_ReturnsBatchedCmd(t *testing.T) {
+	m := newModel("/tmp")
+	cmd := m.Init()
+	if cmd == nil {
+		t.Fatal("Init() returned nil cmd; expected batched cmd (sessions + index sync)")
+	}
+}
+
+func TestIndexReadyMsg_PopulatesIndex(t *testing.T) {
+	m := newModel("/tmp")
+	m.loading = false
+
+	sentinel := &Index{}
+	msg := indexReadyMsg{idx: sentinel}
+	next, _ := m.Update(msg)
+	nm := next.(model)
+	if nm.index != sentinel {
+		t.Error("indexReadyMsg did not set m.index")
+	}
+	if nm.indexing {
+		t.Error("indexing should be false after indexReadyMsg")
+	}
+}
+
+func TestIndexReadyMsg_ErrorLeavesIndexNil(t *testing.T) {
+	m := newModel("/tmp")
+	m.loading = false
+	m.indexing = true
+
+	msg := indexReadyMsg{err: errFake("boom")}
+	next, _ := m.Update(msg)
+	nm := next.(model)
+	if nm.index != nil {
+		t.Error("indexReadyMsg with error should leave index nil")
+	}
+	if nm.indexing {
+		t.Error("indexing should be cleared even on error")
+	}
+}
+
+func TestListHeader_ShowsIndexingWhileIndexing(t *testing.T) {
+	m := newModel("/tmp")
+	m.loading = false
+	m.indexing = true
+	m.sessions = []Session{{ID: "a", Project: "p", Branch: "main", Timestamp: time.Now()}}
+	m.visibleSessions = m.sessions
+	m.width = 120
+	m.height = 40
+
+	out := m.View()
+	if !strings.Contains(out, "indexing") {
+		t.Errorf("list header with indexing=true should contain 'indexing', got:\n%s", out)
+	}
+}
+
+func TestListHeader_NoIndexingWhenNotIndexing(t *testing.T) {
+	m := newModel("/tmp")
+	m.loading = false
+	m.indexing = false
+	m.sessions = []Session{{ID: "a", Project: "p", Branch: "main", Timestamp: time.Now()}}
+	m.visibleSessions = m.sessions
+	m.width = 120
+	m.height = 40
+
+	out := m.View()
+	if strings.Contains(out, "indexing") {
+		t.Errorf("list header with indexing=false should NOT contain 'indexing', got:\n%s", out)
+	}
 }
