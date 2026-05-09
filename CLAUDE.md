@@ -46,7 +46,7 @@ LORE_PROJECTS_DIR=/path/to/projects ./lore
 
 The binary reads from `~/.claude/projects/` (created by Claude Code) by default, scans for `.jsonl` session transcripts, and displays them in a sortable list grouped by recency (today, yesterday, this week, etc.). The projects directory can be overridden via the `--dir` flag (highest precedence) or the `LORE_PROJECTS_DIR` environment variable; resolution lives in `lore.go::resolveProjectsDir`.
 
-The FTS5 search index is cached at `<os.UserCacheDir>/lore/index.db` (e.g. `~/.cache/lore/index.db` on Linux, `~/Library/Caches/lore/index.db` on macOS) and is populated lazily on first search. Bookmarks are persisted alongside it at `<os.UserCacheDir>/lore/bookmarks.json`. The cache directory can be overridden via the `LORE_CACHE_DIR` environment variable; resolution lives in `lore.go::resolveCacheDir`.
+The FTS5 search index is cached at `<os.UserCacheDir>/lore/index.db` (e.g. `~/.cache/lore/index.db` on Linux, `~/Library/Caches/lore/index.db` on macOS) and is populated lazily on first search. Bookmarks are persisted alongside it at `<os.UserCacheDir>/lore/bookmarks.json`. The cache directory can be overridden via the `LORE_CACHE_DIR` environment variable; resolution lives in `lore.go::resolveCacheDir`. The token pricing table is embedded as `pricing.json` and can be overridden with the `LORE_PRICING_FILE` env var (path to a JSON file with the same schema); useful for enterprise rates.
 
 ## Tests
 

@@ -2,10 +2,13 @@ package lore
 
 import (
 	"bufio"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
+	"sync"
 )
 
 // SessionStats holds aggregated token usage for a single session.
@@ -78,22 +81,48 @@ func parseSessionStats(r io.Reader) (SessionStats, error) {
 	return stats, nil
 }
 
-// modelPricing holds per-million-token rates for a model family.
-type modelPricing struct {
-	inputPerMTok      float64 // $ per 1M input tokens
-	outputPerMTok     float64 // $ per 1M output tokens
-	cacheReadFraction float64 // fraction of input price for cache reads
+//go:embed pricing.json
+var embeddedPricingJSON []byte
+
+// pricingEntry is the JSON schema for one entry in pricing.json.
+type pricingEntry struct {
+	Substr            string  `json:"substr"`
+	InputPerMTok      float64 `json:"input_per_mtok"`
+	OutputPerMTok     float64 `json:"output_per_mtok"`
+	CacheReadFraction float64 `json:"cache_read_fraction"`
 }
 
-// pricingTable maps model name substrings to pricing.
-// Matched by checking if the model string contains the key.
-var pricingTable = []struct {
-	substr  string
-	pricing modelPricing
-}{
-	{"opus", modelPricing{inputPerMTok: 15.0, outputPerMTok: 75.0, cacheReadFraction: 0.1}},
-	{"sonnet", modelPricing{inputPerMTok: 3.0, outputPerMTok: 15.0, cacheReadFraction: 0.1}},
-	{"haiku", modelPricing{inputPerMTok: 0.80, outputPerMTok: 4.0, cacheReadFraction: 0.1}},
+var (
+	pricingOnce   sync.Once
+	loadedPricing []pricingEntry
+)
+
+// resetPricingOnce resets the sync.Once so tests can reload the table with a
+// different LORE_PRICING_FILE environment variable.
+func resetPricingOnce() {
+	pricingOnce = sync.Once{}
+	loadedPricing = nil
+}
+
+// getPricingTable returns the pricing table, loading it on first call.
+// Honors LORE_PRICING_FILE env var; falls back to the embedded pricing.json.
+func getPricingTable() []pricingEntry {
+	pricingOnce.Do(func() {
+		data := embeddedPricingJSON
+		if path := os.Getenv("LORE_PRICING_FILE"); path != "" {
+			if b, err := os.ReadFile(path); err == nil {
+				data = b
+			}
+		}
+		var entries []pricingEntry
+		if err := json.Unmarshal(data, &entries); err == nil {
+			loadedPricing = entries
+		} else {
+			// Fallback: parse the embedded JSON (should never fail)
+			_ = json.Unmarshal(embeddedPricingJSON, &loadedPricing)
+		}
+	})
+	return loadedPricing
 }
 
 // estimateCost returns an estimated USD cost for the given session stats.
@@ -103,13 +132,12 @@ func estimateCost(stats SessionStats) float64 {
 		return 0
 	}
 	lower := strings.ToLower(stats.Model)
-	for _, entry := range pricingTable {
-		if strings.Contains(lower, entry.substr) {
-			p := entry.pricing
-			cost := float64(stats.InputTokens)/1_000_000*p.inputPerMTok +
-				float64(stats.OutputTokens)/1_000_000*p.outputPerMTok +
-				float64(stats.CacheReadTokens)/1_000_000*p.inputPerMTok*p.cacheReadFraction +
-				float64(stats.CacheWriteTokens)/1_000_000*p.inputPerMTok
+	for _, entry := range getPricingTable() {
+		if strings.Contains(lower, entry.Substr) {
+			cost := float64(stats.InputTokens)/1_000_000*entry.InputPerMTok +
+				float64(stats.OutputTokens)/1_000_000*entry.OutputPerMTok +
+				float64(stats.CacheReadTokens)/1_000_000*entry.InputPerMTok*entry.CacheReadFraction +
+				float64(stats.CacheWriteTokens)/1_000_000*entry.InputPerMTok
 			return cost
 		}
 	}

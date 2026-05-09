@@ -50,6 +50,10 @@ The FTS5 search index and bookmarks file are cached under the platform user cach
 
 - `LORE_CACHE_DIR` environment variable
 
+The token pricing table (used in the stats panel) is embedded as `pricing.json` and can be overridden with:
+
+- `LORE_PRICING_FILE` environment variable (path to a JSON file with the same schema — useful for enterprise rates)
+
 ## For contributors
 
 See `CLAUDE.md` for development setup, architecture, TDD requirements, and the agent contract.
