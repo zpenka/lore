@@ -94,5 +94,5 @@ func renderListFooter(m model) string {
 			return footerStyle.Render(fmt.Sprintf(" fuzzy filter: %s   j/k · enter open · esc clear   q quit", m.filterText))
 		}
 	}
-	return footerStyle.Render(" j/k move   d/u page   enter open   / search   p project   b branch   f fuzzy   m bookmark   M bookmarks   T timeline   P project view   S stats   g/G top/bottom   ? help   q quit")
+	return footerStyle.Render(" j/k move   d/u page   enter open   R resume   / search   p project   b branch   f fuzzy   m bookmark   M bookmarks   T timeline   P project view   S stats   g/G top/bottom   ? help   q quit")
 }

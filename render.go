@@ -167,6 +167,7 @@ func renderHelpOverlay(m model) string {
  │                                                                           │
  │  Other:                                                                   │
  │    m             Bookmark / unbookmark the selected session              │
+ │    R             Resume session (claude --resume <id>)                  │
  │    P             Open project view for current session's CWD             │
  │    S             Open usage stats panel (token counts + estimated cost)  │
  │    T             Open timeline activity heatmap                          │
@@ -190,6 +191,7 @@ func renderHelpOverlay(m model) string {
  │    space         Expand/collapse tool turn; Agent ⧑ loads sidechain      │
  │    y             Copy the nearest user prompt to clipboard                │
  │    r             Enter re-run mode with the selected user prompt          │
+ │    R             Resume this session (claude --resume <id>)              │
  │    m             Bookmark / unbookmark this session                       │
  │                                                                            │
  │  Other:                                                                    │

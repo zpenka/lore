@@ -29,3 +29,18 @@ func rerunClaude(prompt, cwd string) tea.Cmd {
 		return rerunDoneMsg{err: err}
 	})
 }
+
+// resumeClaude returns a tea.Cmd that resumes an existing Claude session by ID
+// using `claude --resume <id>`. ExecProcess suspends the renderer and hands
+// the terminal to the child process cleanly.
+func resumeClaude(sessionID, cwd string) tea.Cmd {
+	claudePath, err := exec.LookPath("claude")
+	if err != nil {
+		return func() tea.Msg { return rerunDoneMsg{err: err} }
+	}
+	cmd := exec.Command(claudePath, "--resume", sessionID)
+	cmd.Dir = cwd
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return rerunDoneMsg{err: err}
+	})
+}

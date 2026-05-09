@@ -83,6 +83,8 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.flashMsg = "r: cursor is not on a user turn"
 			}
 		}
+	case "R":
+		return m, m.resumeFn(m.detailSession.ID, m.detailSession.CWD)
 	case "/":
 		m.mode = modeSearch
 		m.searchMode = searchModeEntry

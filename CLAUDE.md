@@ -163,6 +163,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `b`: Inline branch filter.
 - `f`: Fuzzy filter across slug, project, and branch simultaneously.
 - `m`: Bookmark / unbookmark the selected session (persists to disk).
+- `R`: Resume the selected session (`claude --resume <id>`).
 - `M`: Toggle bookmark-only filter (binary; composes with the fuzzy filters).
 - `P`: Open the project view scoped to the selected session's CWD.
 - `S`: Open the usage stats panel.
@@ -177,6 +178,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `space`: Expand or collapse a tool turn (the cursor must be on one). Agent turns with sidechains load the sub-agent conversation inline.
 - `y`: Copy the user prompt at-or-before the cursor to the clipboard.
 - `r`: Re-run with the current user prompt (enters re-run mode).
+- `R`: Resume this session (`claude --resume <id>`).
 - `m`: Bookmark / unbookmark this session.
 - `/`: Enter full-text search.
 - `esc` / `q` / `h` / `←`: Back to list.

@@ -172,7 +172,7 @@ func renderDetailFooter(m model) string {
 		copyStatus = "  ✓ copied"
 	}
 	return footerStyle.Render(fmt.Sprintf(
-		" j/k move   d/u page   g/G top/bottom   space expand   y copy   r run   m bookmark   / search   ? help   q/esc/h/← back%s",
+		" j/k move   d/u page   g/G top/bottom   space expand   y copy   r run   R resume   m bookmark   / search   ? help   q/esc/h/← back%s",
 		copyStatus))
 }
 

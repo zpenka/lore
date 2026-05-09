@@ -70,6 +70,7 @@ type model struct {
 	rerunPrompt string                           // The user prompt being re-run
 	rerunCWD    string                           // The session's CWD for re-run
 	rerunFn     func(prompt, cwd string) tea.Cmd // Dependency-injected re-run hook; returns a tea.Cmd so the exec can be routed through tea.ExecProcess (or a fake in tests).
+	resumeFn    func(id, cwd string) tea.Cmd     // Dependency-injected resume hook (R key); wraps `claude --resume <id>` via tea.ExecProcess.
 
 	// Stats view state
 	statsData   []statsRow // per-session stats rows (computed on enter)
@@ -130,6 +131,7 @@ func newModel(projectsDir string) model {
 		justCopied:    false,
 		clipboardFn:   copyToClipboard, // Default to real implementation
 		rerunFn:       rerunClaude,     // Default to real implementation
+		resumeFn:      resumeClaude,    // Default to real implementation
 		bookmarks:     bookmarks,
 		bookmarksPath: bmPath,
 	}

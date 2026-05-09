@@ -101,6 +101,11 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.listOffset = 0
 			}
 		}
+	case "R":
+		if !m.loading && len(m.visibleSessions) > 0 {
+			selected := m.visibleSessions[m.cursor]
+			return m, m.resumeFn(selected.ID, selected.CWD)
+		}
 	case "enter", "l", "right":
 		if !m.loading && len(m.visibleSessions) > 0 {
 			m.detailLoading = true
