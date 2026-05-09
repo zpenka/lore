@@ -15,6 +15,68 @@ type SearchHit struct {
 	Snippet  string  // first matching turn's text, truncated to ~80 chars
 }
 
+// searchFilters holds the parsed structured filters from a search query.
+// Empty strings mean "no filter".
+type searchFilters struct {
+	project string
+	branch  string
+}
+
+// parseSearchQuery splits a query string into free text and structured filters.
+// Recognized prefixes: project:<value> and branch:<value>.
+// The prefix can appear anywhere in the query string.
+func parseSearchQuery(q string) (text string, filters searchFilters) {
+	parts := strings.Fields(q)
+	var textParts []string
+	for _, p := range parts {
+		lower := strings.ToLower(p)
+		if strings.HasPrefix(lower, "project:") {
+			filters.project = p[len("project:"):]
+		} else if strings.HasPrefix(lower, "branch:") {
+			filters.branch = p[len("branch:"):]
+		} else {
+			textParts = append(textParts, p)
+		}
+	}
+	text = strings.Join(textParts, " ")
+	return
+}
+
+// searchSessionsFiltered runs linear-scan search on text, then post-filters
+// results by project and branch from filters. Prefix-free queries behave
+// identically to the old searchSessions path.
+func searchSessionsFiltered(sessions []Session, text string, filters searchFilters) []SearchHit {
+	candidates := sessions
+	if filters.project != "" {
+		var filtered []Session
+		for _, s := range sessions {
+			if strings.EqualFold(s.Project, filters.project) {
+				filtered = append(filtered, s)
+			}
+		}
+		candidates = filtered
+	}
+	if filters.branch != "" {
+		var filtered []Session
+		for _, s := range candidates {
+			if strings.EqualFold(s.Branch, filters.branch) {
+				filtered = append(filtered, s)
+			}
+		}
+		candidates = filtered
+	}
+	if text == "" {
+		// Filters only — return matching sessions as zero-hitcount hits so
+		// the search results view shows them.
+		var hits []SearchHit
+		for _, s := range candidates {
+			hits = append(hits, SearchHit{Session: s, HitCount: 1})
+		}
+		return hits
+	}
+	return searchSessions(candidates, text)
+}
+
 // searchSessions performs a linear-scan full-text search across sessions.
 // For each session:
 //   - Opens the file at session.Path

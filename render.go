@@ -210,7 +210,8 @@ func renderHelpOverlay(m model) string {
  │                                                                            │
  │  Search Entry:                                                             │
  │    Type         Build search query                                        │
- │    enter        Run linear scan search                                    │
+ │                 Prefix syntax: project:<name>  branch:<name>             │
+ │    enter        Run search (FTS5 index or linear scan)                   │
  │    esc          Cancel, return to list                                    │
  │                                                                            │
  │  Search Results:                                                           │

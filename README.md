@@ -33,7 +33,7 @@ Press `?` in any mode for the full keymap. Highlights:
 
 - **List**: `j`/`k` move, `d`/`u` half-page, `g`/`G` jump, `enter` open, `R` resume, `p`/`b` filter project/branch, `f` fuzzy filter, `m` bookmark, `M` bookmark-only filter, `P` project view, `/` search, `S` usage stats, `T` timeline heatmap, `q` quit.
 - **Detail**: `d`/`u` half-page, `space` expand a tool turn (Agent turns with sidechains load the sub-conversation inline), `y` copy the nearest user prompt, `r` re-run that prompt, `R` resume session, `m` bookmark this session, `/` search, `esc`/`q`/`h`/`←` back.
-- **Search**: type → `enter` to run, `j`/`k` or `d`/`u` through hits, `enter` to open, `esc`/`q`/`h`/`←` back.
+- **Search**: type → `enter` to run, `j`/`k` or `d`/`u` through hits, `enter` to open, `esc`/`q`/`h`/`←` back. Supports `project:<name>` and `branch:<name>` prefix filters, e.g. `project:lore refresh token`.
 - **Project**: `j`/`k`, `d`/`u`, `enter` to open, `esc`/`q`/`h`/`←` back. Sessions are grouped by branch.
 - **Re-run**: `enter` to spawn `claude` with the chosen prompt and CWD; `esc`/`q`/`h`/`←` to cancel.
 - **Stats**: `j`/`k`, `g`/`G` to navigate; `esc`/`q`/`h`/`←` back. Columns: project · branch · model · input/output tokens · estimated cost.

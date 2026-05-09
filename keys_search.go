@@ -1,6 +1,8 @@
 package lore
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -18,15 +20,31 @@ func (m model) handleSearchEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEnter:
 		m = m.ensureIndex()
-		// Try indexed search, fall back to linear scan
-		if m.index != nil {
-			if hits, err := m.index.Search(m.searchQuery); err == nil && len(hits) > 0 {
-				m.searchResults = hits
+		text, filters := parseSearchQuery(m.searchQuery)
+		// Try FTS5 index for the text part; post-filter by project/branch.
+		if m.index != nil && text != "" {
+			if hits, err := m.index.Search(text); err == nil && len(hits) > 0 {
+				// Post-filter indexed results by structured filters.
+				if filters.project != "" || filters.branch != "" {
+					var filtered []SearchHit
+					for _, h := range hits {
+						if filters.project != "" && !strings.EqualFold(h.Session.Project, filters.project) {
+							continue
+						}
+						if filters.branch != "" && !strings.EqualFold(h.Session.Branch, filters.branch) {
+							continue
+						}
+						filtered = append(filtered, h)
+					}
+					m.searchResults = filtered
+				} else {
+					m.searchResults = hits
+				}
 			} else {
-				m.searchResults = searchSessions(m.sessions, m.searchQuery)
+				m.searchResults = searchSessionsFiltered(m.sessions, text, filters)
 			}
 		} else {
-			m.searchResults = searchSessions(m.sessions, m.searchQuery)
+			m.searchResults = searchSessionsFiltered(m.sessions, text, filters)
 		}
 		m.searchMode = searchModeResults
 		m.searchCursor = 0
