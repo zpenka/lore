@@ -46,7 +46,9 @@ Press `?` in any mode for the full keymap. Highlights:
 - `--dir <path>` flag (highest precedence)
 - `LORE_PROJECTS_DIR` environment variable
 
-The FTS5 search index and bookmarks file are cached under the platform user cache dir (`~/.cache/lore/` on Linux, `~/Library/Caches/lore/` on macOS).
+The FTS5 search index and bookmarks file are cached under the platform user cache dir (`~/.cache/lore/` on Linux, `~/Library/Caches/lore/` on macOS). Override with:
+
+- `LORE_CACHE_DIR` environment variable
 
 ## For contributors
 

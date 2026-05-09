@@ -71,3 +71,23 @@ func defaultProjectsDir() (string, error) {
 	}
 	return filepath.Join(home, ".claude", "projects"), nil
 }
+
+// resolveCacheDir picks the cache directory with the following precedence:
+//  1. LORE_CACHE_DIR environment variable if set and non-empty
+//  2. os.UserCacheDir() + "/lore"
+//
+// The directory is created if it does not exist.
+func resolveCacheDir() (string, error) {
+	dir := os.Getenv("LORE_CACHE_DIR")
+	if dir == "" {
+		base, err := os.UserCacheDir()
+		if err != nil {
+			return "", fmt.Errorf("locate cache dir: %w", err)
+		}
+		dir = filepath.Join(base, "lore")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create cache dir %q: %w", dir, err)
+	}
+	return dir, nil
+}
