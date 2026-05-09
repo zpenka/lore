@@ -1216,10 +1216,15 @@ func TestPadTrunc_MultibyteTruncate(t *testing.T) {
 }
 
 func TestPadTrunc_MultibyteExact(t *testing.T) {
-	// "日本" = 2 runes, 6 bytes; padTrunc with max=2 should return "日…" (1 + ellipsis)
+	// "日本" = 2 runes, 6 bytes; padTrunc with max=2 is exact fit → no truncation
 	result := padTrunc("日本", 2)
-	if result != "日…" {
-		t.Errorf("padTrunc(%q, 2) = %q, want %q", "日本", result, "日…")
+	if result != "日本" {
+		t.Errorf("padTrunc(%q, 2) = %q, want %q", "日本", result, "日本")
+	}
+	// "日本語" = 3 runes, max=2 → should truncate to "日…"
+	result2 := padTrunc("日本語", 2)
+	if result2 != "日…" {
+		t.Errorf("padTrunc(%q, 2) = %q, want %q", "日本語", result2, "日…")
 	}
 }
 
