@@ -2,6 +2,7 @@ package lore
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -190,6 +191,25 @@ func (m model) clampStatsOffsetNow() model {
 	}
 	body, cursorLine := statsBodyLines(m)
 	m.statsOffset = clampOffset(m.statsOffset, cursorLine, len(body), h)
+	return m
+}
+
+// ensureIndex opens the FTS5 index on first use and runs an initial Sync.
+// Best-effort: returns the model unchanged if the index can't be opened.
+func (m model) ensureIndex() model {
+	if m.index != nil || m.projectsDir == "" {
+		return m
+	}
+	cacheDir, err := indexCacheDir()
+	if err != nil {
+		return m
+	}
+	idx, err := OpenIndex(filepath.Dir(cacheDir))
+	if err != nil {
+		return m
+	}
+	idx.Sync(m.projectsDir)
+	m.index = idx
 	return m
 }
 

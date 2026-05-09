@@ -1,8 +1,6 @@
 package lore
 
 import (
-	"path/filepath"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -19,17 +17,7 @@ func (m model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) handleSearchEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEnter:
-		// Lazy-open the FTS5 index on first search
-		if m.index == nil && m.projectsDir != "" {
-			cacheDir, err := indexCacheDir()
-			if err == nil {
-				idx, err := OpenIndex(filepath.Dir(cacheDir))
-				if err == nil {
-					idx.Sync(m.projectsDir)
-					m.index = idx
-				}
-			}
-		}
+		m = m.ensureIndex()
 		// Try indexed search, fall back to linear scan
 		if m.index != nil {
 			if hits, err := m.index.Search(m.searchQuery); err == nil && len(hits) > 0 {
