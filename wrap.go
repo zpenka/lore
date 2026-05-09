@@ -81,6 +81,21 @@ func wrapParagraph(p string, w int) []string {
 	return out
 }
 
+// truncateRunes limits s to max runes, appending "…" if truncated.
+// When max <= 1 there is no room for the ellipsis, so the first max runes are
+// returned as-is. Identical logic to the former detail.go::truncate and
+// render_detail.go::truncatePromptLine (merged here in v0.9).
+func truncateRunes(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	if max <= 1 {
+		return string(runes[:max])
+	}
+	return string(runes[:max-1]) + "…"
+}
+
 // runePrefix returns the first n runes of s.
 func runePrefix(s string, n int) string {
 	if n <= 0 {

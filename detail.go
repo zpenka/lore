@@ -321,14 +321,8 @@ func quote(s string) string {
 	return `"` + s + `"`
 }
 
-// truncate limits s to max runes, adding "…" if truncated
+// truncate limits s to max runes, adding "…" if truncated.
+// Delegates to truncateRunes (wrap.go) which is the canonical implementation.
 func truncate(s string, max int) string {
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
-	}
-	if max <= 1 {
-		return string(runes[:max])
-	}
-	return string(runes[:max-1]) + "…"
+	return truncateRunes(s, max)
 }
