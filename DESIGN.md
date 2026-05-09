@@ -2,7 +2,7 @@
 
 A keyboard-driven TUI for browsing your Claude Code session history.
 
-> **Status:** v0.8.0 — All planned phases plus the v0.8 playbook complete.
+> **Status:** v0.9.0 — All planned phases plus the v0.8 and v0.9 playbooks complete.
 > The repo split (Phase 6) has happened — this is the standalone
 > `github.com/zpenka/lore` module. See [Phasing](#phasing) for status.
 >
@@ -294,6 +294,7 @@ Nothing else. Stay lean.
 | v0.8 | **Search prefix syntax** — `project:<name>` and `branch:<name>` filter FTS5 and linear-scan results | ✅ Done |
 | v0.8 | **`LORE_PRICING_FILE` env override** — `go:embed pricing.json` with `sync.Once` loader; env path overrides embedded rates | ✅ Done |
 | v0.8 | **Fuzz targets in CI** — `FuzzParseSessionMetadata` and `FuzzParseTurnsFromJSONL`; non-blocking fuzz CI job (30s each) | ✅ Done |
+| v0.9 | **Quality pass** — `truncateRunes` unifies two duplicate helpers; `padTrunc` rune-safe; list footer active-filter hints; direct tests for `computeStatsRows`, `loadSessionDetailCmd`, `ensureIndex`, `handleSearchEntryKey` FTS5 branch, `searchSessionsFiltered` edge cases, `extractSessionText` assistant blocks | ✅ Done |
 
 Beyond the phased work, several quality-of-life items also landed:
 inline fuzzy ranking for the `p` / `b` filters, a `?` help overlay with
