@@ -1025,6 +1025,24 @@ func timeFromString(s string) time.Time {
 	return t
 }
 
+// ----- truncate edge branches -----
+
+func TestTruncate_MaxOne(t *testing.T) {
+	// max=1: only one rune fits, no room for ellipsis
+	got := truncate("abc", 1)
+	if got != "a" {
+		t.Errorf("truncate(%q, 1) = %q, want %q", "abc", got, "a")
+	}
+}
+
+func TestTruncate_ExactFit(t *testing.T) {
+	// exact fit: no truncation needed, no ellipsis
+	got := truncate("ab", 2)
+	if got != "ab" {
+		t.Errorf("truncate(%q, 2) = %q, want %q", "ab", got, "ab")
+	}
+}
+
 // FuzzParseTurnsFromJSONL fuzz-tests the JSONL turn parser.
 // Seeds cover valid turns and common malformed inputs.
 func FuzzParseTurnsFromJSONL(f *testing.F) {

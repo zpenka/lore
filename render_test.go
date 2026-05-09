@@ -1163,3 +1163,13 @@ func TestListHeader_OmitsSkippedWhenNoWarnings(t *testing.T) {
 		t.Errorf("list header without warnings should not mention 'skipped', got: %q", out)
 	}
 }
+
+// ----- truncatePromptLine edge branch (Task 1) -----
+
+func TestTruncatePromptLine_MaxOne(t *testing.T) {
+	// max=1: only one rune fits, no room for ellipsis
+	got := truncatePromptLine("hello", 1)
+	if got != "h" {
+		t.Errorf("truncatePromptLine(%q, 1) = %q, want %q", "hello", got, "h")
+	}
+}
