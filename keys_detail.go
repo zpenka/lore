@@ -15,54 +15,13 @@ func (m model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.sidechainTurns = nil
 		m.justCopied = false
 		return m, nil
-	case "j", "down":
-		visible := m.visibleTurns()
-		if m.cursorDetail < len(visible)-1 {
-			m.cursorDetail++
-		}
-		m.justCopied = false
-		m = m.clampDetailOffsetNow()
-	case "k", "up":
-		if m.cursorDetail > 0 {
-			m.cursorDetail--
-		}
-		m.justCopied = false
-		m = m.clampDetailOffsetNow()
-	case "d":
+	case "j", "k", "d", "u", "g", "G", "down", "up":
 		visible := m.visibleTurns()
 		half := m.bodyHeight() / 2
 		if half < 1 {
 			half = 1
 		}
-		m.cursorDetail += half
-		if m.cursorDetail >= len(visible) {
-			m.cursorDetail = len(visible) - 1
-		}
-		if m.cursorDetail < 0 {
-			m.cursorDetail = 0
-		}
-		m.justCopied = false
-		m = m.clampDetailOffsetNow()
-	case "u":
-		half := m.bodyHeight() / 2
-		if half < 1 {
-			half = 1
-		}
-		m.cursorDetail -= half
-		if m.cursorDetail < 0 {
-			m.cursorDetail = 0
-		}
-		m.justCopied = false
-		m = m.clampDetailOffsetNow()
-	case "g":
-		m.cursorDetail = 0
-		m.justCopied = false
-		m = m.clampDetailOffsetNow()
-	case "G":
-		visible := m.visibleTurns()
-		if len(visible) > 0 {
-			m.cursorDetail = len(visible) - 1
-		}
+		m.cursorDetail = nav(msg.String(), m.cursorDetail, len(visible), half)
 		m.justCopied = false
 		m = m.clampDetailOffsetNow()
 	case " ":

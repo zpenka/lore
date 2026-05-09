@@ -60,45 +60,12 @@ func (m model) handleSearchEntryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) handleSearchResultsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "j", "down":
-		if m.searchCursor < len(m.searchResults)-1 {
-			m.searchCursor++
-		}
-		m = m.clampSearchOffsetNow()
-	case "k", "up":
-		if m.searchCursor > 0 {
-			m.searchCursor--
-		}
-		m = m.clampSearchOffsetNow()
-	case "d":
-		if len(m.searchResults) > 0 {
-			half := m.bodyHeight() / 2
-			if half < 1 {
-				half = 1
-			}
-			m.searchCursor += half
-			if m.searchCursor >= len(m.searchResults) {
-				m.searchCursor = len(m.searchResults) - 1
-			}
-		}
-		m = m.clampSearchOffsetNow()
-	case "u":
+	case "j", "k", "d", "u", "g", "G", "down", "up":
 		half := m.bodyHeight() / 2
 		if half < 1 {
 			half = 1
 		}
-		m.searchCursor -= half
-		if m.searchCursor < 0 {
-			m.searchCursor = 0
-		}
-		m = m.clampSearchOffsetNow()
-	case "g":
-		m.searchCursor = 0
-		m = m.clampSearchOffsetNow()
-	case "G":
-		if len(m.searchResults) > 0 {
-			m.searchCursor = len(m.searchResults) - 1
-		}
+		m.searchCursor = nav(msg.String(), m.searchCursor, len(m.searchResults), half)
 		m = m.clampSearchOffsetNow()
 	case "enter", "l", "right":
 		if len(m.searchResults) > 0 {

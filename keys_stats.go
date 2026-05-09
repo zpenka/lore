@@ -11,23 +11,12 @@ func (m model) handleStatsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "esc", "h", "left":
 		m.mode = modeList
 		return m, nil
-	case "j", "down":
-		if m.statsCursor < len(m.statsData)-1 {
-			m.statsCursor++
+	case "j", "k", "d", "u", "g", "G", "down", "up":
+		half := m.bodyHeight() / 2
+		if half < 1 {
+			half = 1
 		}
-		m = m.clampStatsOffsetNow()
-	case "k", "up":
-		if m.statsCursor > 0 {
-			m.statsCursor--
-		}
-		m = m.clampStatsOffsetNow()
-	case "g":
-		m.statsCursor = 0
-		m = m.clampStatsOffsetNow()
-	case "G":
-		if len(m.statsData) > 0 {
-			m.statsCursor = len(m.statsData) - 1
-		}
+		m.statsCursor = nav(msg.String(), m.statsCursor, len(m.statsData), half)
 		m = m.clampStatsOffsetNow()
 	}
 	return m, nil

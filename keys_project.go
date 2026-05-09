@@ -13,45 +13,12 @@ func (m model) handleProjectKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.projectCursor = 0
 		m.projectOffset = 0
 		return m, nil
-	case "j", "down":
-		if m.projectCursor < len(m.projectSessions)-1 {
-			m.projectCursor++
-		}
-		m = m.clampProjectOffsetNow()
-	case "k", "up":
-		if m.projectCursor > 0 {
-			m.projectCursor--
-		}
-		m = m.clampProjectOffsetNow()
-	case "d":
-		if len(m.projectSessions) > 0 {
-			half := m.bodyHeight() / 2
-			if half < 1 {
-				half = 1
-			}
-			m.projectCursor += half
-			if m.projectCursor >= len(m.projectSessions) {
-				m.projectCursor = len(m.projectSessions) - 1
-			}
-		}
-		m = m.clampProjectOffsetNow()
-	case "u":
+	case "j", "k", "d", "u", "g", "G", "down", "up":
 		half := m.bodyHeight() / 2
 		if half < 1 {
 			half = 1
 		}
-		m.projectCursor -= half
-		if m.projectCursor < 0 {
-			m.projectCursor = 0
-		}
-		m = m.clampProjectOffsetNow()
-	case "g":
-		m.projectCursor = 0
-		m = m.clampProjectOffsetNow()
-	case "G":
-		if len(m.projectSessions) > 0 {
-			m.projectCursor = len(m.projectSessions) - 1
-		}
+		m.projectCursor = nav(msg.String(), m.projectCursor, len(m.projectSessions), half)
 		m = m.clampProjectOffsetNow()
 	case "enter", "l", "right":
 		if len(m.projectSessions) > 0 {

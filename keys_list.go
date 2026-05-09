@@ -14,48 +14,13 @@ func (m model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q":
 		return m, tea.Quit
-	case "j", "down":
-		if !m.loading && m.cursor < len(m.visibleSessions)-1 {
-			m.cursor++
-		}
-		m = m.clampListOffsetNow()
-	case "k", "up":
-		if !m.loading && m.cursor > 0 {
-			m.cursor--
-		}
-		m = m.clampListOffsetNow()
-	case "d":
-		if !m.loading && len(m.visibleSessions) > 0 {
-			half := m.bodyHeight() / 2
-			if half < 1 {
-				half = 1
-			}
-			m.cursor += half
-			if m.cursor >= len(m.visibleSessions) {
-				m.cursor = len(m.visibleSessions) - 1
-			}
-		}
-		m = m.clampListOffsetNow()
-	case "u":
+	case "j", "k", "d", "u", "g", "G", "down", "up":
 		if !m.loading {
 			half := m.bodyHeight() / 2
 			if half < 1 {
 				half = 1
 			}
-			m.cursor -= half
-			if m.cursor < 0 {
-				m.cursor = 0
-			}
-		}
-		m = m.clampListOffsetNow()
-	case "g":
-		if !m.loading {
-			m.cursor = 0
-		}
-		m = m.clampListOffsetNow()
-	case "G":
-		if !m.loading && len(m.visibleSessions) > 0 {
-			m.cursor = len(m.visibleSessions) - 1
+			m.cursor = nav(msg.String(), m.cursor, len(m.visibleSessions), half)
 		}
 		m = m.clampListOffsetNow()
 	case "p":
