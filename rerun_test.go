@@ -128,3 +128,63 @@ func TestRerunDoneMsg_Error_ReturnsToListWithFlash(t *testing.T) {
 		t.Errorf("flashMsg = %q, want it to contain error text %q", m.flashMsg, rerunErr.Error())
 	}
 }
+
+// ----- R resume tests -----
+
+// fakeResumeFn is an injectable resumeFn that records the call args and
+// immediately yields a rerunDoneMsg.
+func fakeResumeFn(rerunErr error, gotID *string, gotCWD *string) func(id, cwd string) tea.Cmd {
+	return func(id, cwd string) tea.Cmd {
+		if gotID != nil {
+			*gotID = id
+		}
+		if gotCWD != nil {
+			*gotCWD = cwd
+		}
+		return func() tea.Msg { return rerunDoneMsg{err: rerunErr} }
+	}
+}
+
+func TestModel_ListMode_R_InvokesResumeFn(t *testing.T) {
+	m := loadedModel("sess-abc")
+	m.visibleSessions[0] = Session{ID: "sess-abc", CWD: "/proj/abc", Project: "abc", Branch: "main"}
+
+	var gotID, gotCWD string
+	m.resumeFn = fakeResumeFn(nil, &gotID, &gotCWD)
+
+	next, cmd := m.Update(keyMsg("R"))
+	if cmd == nil {
+		t.Fatal("R in list mode returned nil cmd")
+	}
+	_ = next
+
+	if gotID != "sess-abc" {
+		t.Errorf("resumeFn called with id=%q, want %q", gotID, "sess-abc")
+	}
+	if gotCWD != "/proj/abc" {
+		t.Errorf("resumeFn called with cwd=%q, want %q", gotCWD, "/proj/abc")
+	}
+}
+
+func TestModel_DetailMode_R_InvokesResumeFn(t *testing.T) {
+	m := loadedModel("sess-xyz")
+	m.mode = modeDetail
+	m.detailSession = Session{ID: "sess-xyz", CWD: "/proj/xyz", Project: "xyz", Branch: "main"}
+	m.turns = []turn{{kind: "user", body: "hello"}}
+
+	var gotID, gotCWD string
+	m.resumeFn = fakeResumeFn(nil, &gotID, &gotCWD)
+
+	next, cmd := m.Update(keyMsg("R"))
+	if cmd == nil {
+		t.Fatal("R in detail mode returned nil cmd")
+	}
+	_ = next
+
+	if gotID != "sess-xyz" {
+		t.Errorf("resumeFn called with id=%q, want %q", gotID, "sess-xyz")
+	}
+	if gotCWD != "/proj/xyz" {
+		t.Errorf("resumeFn called with cwd=%q, want %q", gotCWD, "/proj/xyz")
+	}
+}

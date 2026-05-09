@@ -1,0 +1,5 @@
+[
+  {"substr": "opus",   "input_per_mtok": 15.0, "output_per_mtok": 75.0, "cache_read_fraction": 0.1},
+  {"substr": "sonnet", "input_per_mtok":  3.0, "output_per_mtok": 15.0, "cache_read_fraction": 0.1},
+  {"substr": "haiku",  "input_per_mtok":  0.8, "output_per_mtok":  4.0, "cache_read_fraction": 0.1}
+]

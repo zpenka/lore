@@ -439,3 +439,28 @@ func TestScanSessions_NoWarningsWhenAllValid(t *testing.T) {
 		t.Errorf("expected no warnings for valid files, got %d: %v", len(warnings), warnings)
 	}
 }
+
+// FuzzParseSessionMetadata fuzz-tests the JSONL session metadata parser.
+// Seeds cover the known valid event shape plus common malformed inputs.
+func FuzzParseSessionMetadata(f *testing.F) {
+	// Seed: valid first user event
+	f.Add(`{"type":"user","sessionId":"abc","timestamp":"2026-01-01T00:00:00Z","cwd":"/x","gitBranch":"main","slug":"s"}`)
+	// Seed: empty
+	f.Add(``)
+	// Seed: non-JSON
+	f.Add(`not json at all`)
+	// Seed: valid first line but invalid second
+	f.Add("\"type\":\"queue\"\n{\"type\":\"user\",\"sessionId\":\"x\"}")
+	// Seed: valid JSON but wrong type
+	f.Add(`{"type":"assistant","message":{"content":"hi"}}`)
+
+	f.Fuzz(func(t *testing.T, data string) {
+		// Must not panic regardless of input.
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("parseSessionMetadata panicked: %v", r)
+			}
+		}()
+		_, _ = parseSessionMetadata(strings.NewReader(data))
+	})
+}

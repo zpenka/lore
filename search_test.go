@@ -441,3 +441,99 @@ func TestMatchAssistantEvent_SkipsThinking(t *testing.T) {
 		t.Errorf("skip thinking: hits = %d, want 0", hits)
 	}
 }
+
+// ----- Task 9: parseSearchQuery tests -----
+
+func TestParseSearchQuery_NoPrefix(t *testing.T) {
+	text, filters := parseSearchQuery("hello world")
+	if text != "hello world" {
+		t.Errorf("text = %q, want %q", text, "hello world")
+	}
+	if filters.project != "" || filters.branch != "" {
+		t.Errorf("unexpected filters: %+v", filters)
+	}
+}
+
+func TestParseSearchQuery_ProjectPrefix(t *testing.T) {
+	text, filters := parseSearchQuery("project:lore refresh token")
+	if text != "refresh token" {
+		t.Errorf("text = %q, want %q", text, "refresh token")
+	}
+	if filters.project != "lore" {
+		t.Errorf("project = %q, want %q", filters.project, "lore")
+	}
+}
+
+func TestParseSearchQuery_BranchPrefix(t *testing.T) {
+	text, filters := parseSearchQuery("branch:main foo")
+	if text != "foo" {
+		t.Errorf("text = %q, want %q", text, "foo")
+	}
+	if filters.branch != "main" {
+		t.Errorf("branch = %q, want %q", filters.branch, "main")
+	}
+}
+
+func TestParseSearchQuery_BothPrefixes(t *testing.T) {
+	text, filters := parseSearchQuery("project:lore branch:main query text")
+	if text != "query text" {
+		t.Errorf("text = %q, want %q", text, "query text")
+	}
+	if filters.project != "lore" {
+		t.Errorf("project = %q, want %q", filters.project, "lore")
+	}
+	if filters.branch != "main" {
+		t.Errorf("branch = %q, want %q", filters.branch, "main")
+	}
+}
+
+func TestParseSearchQuery_PrefixAtEnd(t *testing.T) {
+	text, filters := parseSearchQuery("foo project:bar")
+	if filters.project != "bar" {
+		t.Errorf("project = %q, want %q", filters.project, "bar")
+	}
+	if text != "foo" {
+		t.Errorf("text = %q, want %q", text, "foo")
+	}
+}
+
+func TestParseSearchQuery_OnlyPrefixes(t *testing.T) {
+	text, filters := parseSearchQuery("project:lore branch:feat/v0.8")
+	if text != "" {
+		t.Errorf("text = %q, want empty", text)
+	}
+	if filters.project != "lore" || filters.branch != "feat/v0.8" {
+		t.Errorf("unexpected filters: %+v", filters)
+	}
+}
+
+func TestSearchSessions_ProjectFilter(t *testing.T) {
+	// Two sessions on different projects, same content.
+	dir := t.TempDir()
+
+	writeSearchFixture(t, dir, "a.jsonl", "lore", "main", "index content")
+	writeSearchFixture(t, dir, "b.jsonl", "other", "main", "index content")
+
+	ss := []Session{
+		{ID: "a", Project: "lore", Branch: "main", Path: filepath.Join(dir, "a.jsonl")},
+		{ID: "b", Project: "other", Branch: "main", Path: filepath.Join(dir, "b.jsonl")},
+	}
+
+	text, filters := parseSearchQuery("project:lore index")
+	results := searchSessionsFiltered(ss, text, filters)
+
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Session.ID != "a" {
+		t.Errorf("got session %q, want %q", results[0].Session.ID, "a")
+	}
+}
+
+func writeSearchFixture(t *testing.T, dir, name, project, branch, text string) {
+	t.Helper()
+	line := `{"type":"user","sessionId":"x","timestamp":"2026-01-01T00:00:00Z","cwd":"/` + project + `","gitBranch":"` + branch + `","message":{"content":"` + text + `"}}`
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(line+"\n"), 0o644); err != nil {
+		t.Fatalf("writeSearchFixture: %v", err)
+	}
+}

@@ -14,7 +14,7 @@ import (
 
 // Version is the lore binary version. Set at build time via ldflags by GoReleaser;
 // falls back to the literal below for local builds.
-var Version = "0.7.0"
+var Version = "0.8.0"
 
 // Run is the entry point used by cmd/lore/main.go.
 func Run() error {
@@ -70,4 +70,24 @@ func defaultProjectsDir() (string, error) {
 		return "", fmt.Errorf("locate home dir: %w", err)
 	}
 	return filepath.Join(home, ".claude", "projects"), nil
+}
+
+// resolveCacheDir picks the cache directory with the following precedence:
+//  1. LORE_CACHE_DIR environment variable if set and non-empty
+//  2. os.UserCacheDir() + "/lore"
+//
+// The directory is created if it does not exist.
+func resolveCacheDir() (string, error) {
+	dir := os.Getenv("LORE_CACHE_DIR")
+	if dir == "" {
+		base, err := os.UserCacheDir()
+		if err != nil {
+			return "", fmt.Errorf("locate cache dir: %w", err)
+		}
+		dir = filepath.Join(base, "lore")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create cache dir %q: %w", dir, err)
+	}
+	return dir, nil
 }

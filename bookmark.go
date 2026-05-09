@@ -3,7 +3,6 @@ package lore
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -14,13 +13,13 @@ import (
 // rather than persisting an explicit false. The file lives next to the
 // FTS5 search index in the user's cache dir.
 
-// bookmarksFile returns the platform-appropriate path to the bookmarks JSON.
+// bookmarksFile returns the path to the bookmarks JSON, respecting LORE_CACHE_DIR.
 func bookmarksFile() (string, error) {
-	cacheDir, err := os.UserCacheDir()
+	dir, err := resolveCacheDir()
 	if err != nil {
-		return "", fmt.Errorf("user cache dir: %w", err)
+		return "", err
 	}
-	return filepath.Join(cacheDir, "lore", "bookmarks.json"), nil
+	return filepath.Join(dir, "bookmarks.json"), nil
 }
 
 // loadBookmarks reads the bookmarks JSON from path. A missing file returns

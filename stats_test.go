@@ -1,6 +1,7 @@
 package lore
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -220,5 +221,30 @@ func TestFormatTokenCount(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("formatTokenCount(%d) = %q, want %q", tt.n, got, tt.want)
 		}
+	}
+}
+
+// ----- LORE_PRICING_FILE override tests -----
+
+func TestEstimateCost_PricingFileOverride(t *testing.T) {
+	// Write a temp pricing file with a custom rate (opus at $1/mtok in, $2/mtok out)
+	pricingJSON := `[{"substr":"opus","input_per_mtok":1.0,"output_per_mtok":2.0,"cache_read_fraction":0.0}]`
+	tmp := t.TempDir()
+	pf := tmp + "/custom_pricing.json"
+	if err := os.WriteFile(pf, []byte(pricingJSON), 0o644); err != nil {
+		t.Fatalf("write pricing file: %v", err)
+	}
+	t.Setenv("LORE_PRICING_FILE", pf)
+	resetPricingOnce()
+
+	stats := SessionStats{
+		Model:        "claude-opus-4",
+		InputTokens:  1_000_000,
+		OutputTokens: 1_000_000,
+	}
+	got := estimateCost(stats)
+	want := 3.0 // $1 in + $2 out
+	if got != want {
+		t.Errorf("estimateCost with override = %.4f, want %.4f", got, want)
 	}
 }

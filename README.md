@@ -31,9 +31,9 @@ go install github.com/zpenka/lore/cmd/lore@latest
 
 Press `?` in any mode for the full keymap. Highlights:
 
-- **List**: `j`/`k` move, `d`/`u` half-page, `g`/`G` jump, `enter` open, `p`/`b` filter project/branch, `f` fuzzy filter, `m` bookmark, `M` bookmark-only filter, `P` project view, `/` search, `S` usage stats, `T` timeline heatmap, `q` quit.
-- **Detail**: `d`/`u` half-page, `space` expand a tool turn (Agent turns with sidechains load the sub-conversation inline), `y` copy the nearest user prompt, `r` re-run that prompt, `m` bookmark this session, `/` search, `esc`/`q`/`h`/`←` back.
-- **Search**: type → `enter` to run, `j`/`k` or `d`/`u` through hits, `enter` to open, `esc`/`q`/`h`/`←` back.
+- **List**: `j`/`k` move, `d`/`u` half-page, `g`/`G` jump, `enter` open, `R` resume, `p`/`b` filter project/branch, `f` fuzzy filter, `m` bookmark, `M` bookmark-only filter, `P` project view, `/` search, `S` usage stats, `T` timeline heatmap, `q` quit.
+- **Detail**: `d`/`u` half-page, `space` expand a tool turn (Agent turns with sidechains load the sub-conversation inline), `y` copy the nearest user prompt, `r` re-run that prompt, `R` resume session, `m` bookmark this session, `/` search, `esc`/`q`/`h`/`←` back.
+- **Search**: type → `enter` to run, `j`/`k` or `d`/`u` through hits, `enter` to open, `esc`/`q`/`h`/`←` back. Supports `project:<name>` and `branch:<name>` prefix filters, e.g. `project:lore refresh token`.
 - **Project**: `j`/`k`, `d`/`u`, `enter` to open, `esc`/`q`/`h`/`←` back. Sessions are grouped by branch.
 - **Re-run**: `enter` to spawn `claude` with the chosen prompt and CWD; `esc`/`q`/`h`/`←` to cancel.
 - **Stats**: `j`/`k`, `g`/`G` to navigate; `esc`/`q`/`h`/`←` back. Columns: project · branch · model · input/output tokens · estimated cost.
@@ -46,7 +46,13 @@ Press `?` in any mode for the full keymap. Highlights:
 - `--dir <path>` flag (highest precedence)
 - `LORE_PROJECTS_DIR` environment variable
 
-The FTS5 search index and bookmarks file are cached under the platform user cache dir (`~/.cache/lore/` on Linux, `~/Library/Caches/lore/` on macOS).
+The FTS5 search index and bookmarks file are cached under the platform user cache dir (`~/.cache/lore/` on Linux, `~/Library/Caches/lore/` on macOS). Override with:
+
+- `LORE_CACHE_DIR` environment variable
+
+The token pricing table (used in the stats panel) is embedded as `pricing.json` and can be overridden with:
+
+- `LORE_PRICING_FILE` environment variable (path to a JSON file with the same schema — useful for enterprise rates)
 
 ## For contributors
 

@@ -261,11 +261,11 @@ func extractSessionText(data []byte) (string, error) {
 	return strings.Join(parts, "\n"), nil
 }
 
-// indexCacheDir returns the platform-appropriate cache directory for the index DB.
+// indexCacheDir returns the path to the FTS5 index DB file, respecting LORE_CACHE_DIR.
 func indexCacheDir() (string, error) {
-	cacheDir, err := os.UserCacheDir()
+	dir, err := resolveCacheDir()
 	if err != nil {
-		return "", fmt.Errorf("user cache dir: %w", err)
+		return "", err
 	}
-	return filepath.Join(cacheDir, "lore", "index.db"), nil
+	return filepath.Join(dir, "index.db"), nil
 }

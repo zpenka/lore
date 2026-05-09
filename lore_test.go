@@ -138,3 +138,43 @@ func TestRun_VersionPath(t *testing.T) {
 		t.Errorf("Run() stdout = %q, want it to contain %q", buf.String(), Version)
 	}
 }
+
+// ----- resolveCacheDir tests -----
+
+func TestResolveCacheDir_EnvTakesPrecedence(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("LORE_CACHE_DIR", tmp)
+	got, err := resolveCacheDir()
+	if err != nil {
+		t.Fatalf("resolveCacheDir: %v", err)
+	}
+	if got != tmp {
+		t.Errorf("got %q, want %q", got, tmp)
+	}
+}
+
+func TestResolveCacheDir_DefaultWhenEnvUnset(t *testing.T) {
+	t.Setenv("LORE_CACHE_DIR", "")
+	got, err := resolveCacheDir()
+	if err != nil {
+		t.Fatalf("resolveCacheDir: %v", err)
+	}
+	cacheBase, _ := os.UserCacheDir()
+	want := filepath.Join(cacheBase, "lore")
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestResolveCacheDir_CreatesDirectory(t *testing.T) {
+	tmp := t.TempDir()
+	newDir := filepath.Join(tmp, "lore-cache-test")
+	t.Setenv("LORE_CACHE_DIR", newDir)
+	_, err := resolveCacheDir()
+	if err != nil {
+		t.Fatalf("resolveCacheDir: %v", err)
+	}
+	if _, statErr := os.Stat(newDir); os.IsNotExist(statErr) {
+		t.Error("resolveCacheDir did not create the directory")
+	}
+}

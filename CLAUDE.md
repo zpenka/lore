@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **lore** is a keyboard-driven TUI (Terminal User Interface) for browsing Claude Code session history. It reads session transcripts from `~/.claude/projects/<encoded-cwd>/*.jsonl` and provides rich navigation, filtering, and search across sessions.
 
-Current status: **v0.7.0 — All planned phases plus the v0.7 cleanup and feature pass complete.** Implemented:
+Current status: **v0.8.0 — All planned phases plus the v0.8 playbook complete.** Implemented:
 
 - Session list (3.1) with relative-time bucketing and query preview (first user message).
 - Inline project (`p`), branch (`b`), and fuzzy (`f`) filters with fuzzy ranking (DRY'd in v0.7 around a single `fuzzyFilterSessions` helper).
@@ -23,6 +23,10 @@ Current status: **v0.7.0 — All planned phases plus the v0.7 cleanup and featur
 - **Session bookmarks (v0.7, `m` and `M` keys)**: toggle a `★` on any session, persist to `<cacheDir>/lore/bookmarks.json`, filter to bookmarks-only with `M`. Composable with the `f`/`p`/`b` filters.
 - **Timeline activity heatmap (v0.7, `T` key)**: 8-week × 7-day grid showing session counts by day; navigate with `h`/`l` (or `←`/`→`), `enter` to filter the list to the highlighted date.
 - **Render chrome unification (v0.7)**: every mode goes through dedicated `render*Header` and `render*Footer` functions; back-nav hint is consistent across all sub-views (`q/esc/h/← back`); list shows `q quit`. Skipped sessions surface in the list header as "(N skipped)".
+- **v0.8 code split**: `model.go` (handlers → `keys_*.go`) and `render.go` (renderers → `render_*.go`) split into per-mode files; `nav()` helper DRYs cursor movement; `ensureIndex()` extracted.
+- **v0.8 env vars**: `LORE_CACHE_DIR` overrides cache location; `LORE_PRICING_FILE` overrides the embedded `pricing.json` rates.
+- **v0.8 features**: `R` resumes a session via `claude --resume <id>`; FTS5 index syncs in the background at startup (list header shows `indexing…`); search accepts `project:<name>` and `branch:<name>` prefix filters.
+- **v0.8 quality**: fuzz targets for `parseSessionMetadata` and `parseTurnsFromJSONL` run 30s per push in CI.
 
 See `DESIGN.md` for the full product vision and phasing roadmap.
 
@@ -46,7 +50,7 @@ LORE_PROJECTS_DIR=/path/to/projects ./lore
 
 The binary reads from `~/.claude/projects/` (created by Claude Code) by default, scans for `.jsonl` session transcripts, and displays them in a sortable list grouped by recency (today, yesterday, this week, etc.). The projects directory can be overridden via the `--dir` flag (highest precedence) or the `LORE_PROJECTS_DIR` environment variable; resolution lives in `lore.go::resolveProjectsDir`.
 
-The FTS5 search index is cached at `<os.UserCacheDir>/lore/index.db` (e.g. `~/.cache/lore/index.db` on Linux, `~/Library/Caches/lore/index.db` on macOS) and is populated lazily on first search. Bookmarks are persisted alongside it at `<os.UserCacheDir>/lore/bookmarks.json`.
+The FTS5 search index is cached at `<os.UserCacheDir>/lore/index.db` (e.g. `~/.cache/lore/index.db` on Linux, `~/Library/Caches/lore/index.db` on macOS) and is populated lazily on first search. Bookmarks are persisted alongside it at `<os.UserCacheDir>/lore/bookmarks.json`. The cache directory can be overridden via the `LORE_CACHE_DIR` environment variable; resolution lives in `lore.go::resolveCacheDir`. The token pricing table is embedded as `pricing.json` and can be overridden with the `LORE_PRICING_FILE` env var (path to a JSON file with the same schema); useful for enterprise rates.
 
 ## Tests
 
@@ -163,6 +167,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `b`: Inline branch filter.
 - `f`: Fuzzy filter across slug, project, and branch simultaneously.
 - `m`: Bookmark / unbookmark the selected session (persists to disk).
+- `R`: Resume the selected session (`claude --resume <id>`).
 - `M`: Toggle bookmark-only filter (binary; composes with the fuzzy filters).
 - `P`: Open the project view scoped to the selected session's CWD.
 - `S`: Open the usage stats panel.
@@ -177,6 +182,7 @@ The full key map is also surfaced in-app via the `?` overlay. Authoritative refe
 - `space`: Expand or collapse a tool turn (the cursor must be on one). Agent turns with sidechains load the sub-agent conversation inline.
 - `y`: Copy the user prompt at-or-before the cursor to the clipboard.
 - `r`: Re-run with the current user prompt (enters re-run mode).
+- `R`: Resume this session (`claude --resume <id>`).
 - `m`: Bookmark / unbookmark this session.
 - `/`: Enter full-text search.
 - `esc` / `q` / `h` / `←`: Back to list.
@@ -227,6 +233,16 @@ Body math goes through one of `listBodyLines`, `detailBodyLines`, `searchBodyLin
 | v0.7 — Cleanup pass | ✅ Complete (unified footers/headers, DRY filter, layout constants, dead-code removal, missing unit tests, scan warnings) |
 | v0.7 — Bookmarks (2A) | ✅ Complete (`bookmark.go`, `m`/`M` keys, ★ markers in list/search/project) |
 | v0.7 — Timeline heatmap (2B) | ✅ Complete (`timeline.go`, `T` key, enter filters list to a day) |
+| v0.8 — Code split (T1) | ✅ Complete (`model.go` → `keys_*.go`; `render.go` → `render_*.go`; `nav.go` helper) |
+| v0.8 — Background FTS5 sync (T2) | ✅ Complete (`Init()` batches session load + index sync; `indexing` flag in header) |
+| v0.8 — Resume session `R` (T3) | ✅ Complete (`resumeClaude()` in `rerun.go`; `R` key in list and detail modes) |
+| v0.8 — `LORE_CACHE_DIR` env var (T4) | ✅ Complete (`resolveCacheDir()` in `lore.go`; used by `index.go` and `bookmark.go`) |
+| v0.8 — Search prefix syntax (T5) | ✅ Complete (`parseSearchQuery()` + `searchSessionsFiltered()` in `search.go`) |
+| v0.8 — `LORE_PRICING_FILE` env override (T6) | ✅ Complete (`go:embed pricing.json`; `sync.Once` loader; env override in `stats.go`) |
+| v0.8 — `nav()` helper (T7) | ✅ Complete (`nav.go`; all cursor handlers use it; `d`/`u` added to stats mode) |
+| v0.8 — Fuzz targets in CI (T8) | ✅ Complete (`FuzzParseSessionMetadata`, `FuzzParseTurnsFromJSONL`; non-blocking fuzz CI job) |
+| v0.8 — Regression test nets (T9) | ✅ Complete (`internal_split_test.go`, `internal_render_split_test.go`, `nav_test.go`) |
+| v0.8 — Docs + version bump (T10) | ✅ Complete (CLAUDE.md, README.md, DESIGN.md updated; Version = "0.8.0") |
 
 ## Repo Layout
 

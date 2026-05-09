@@ -2,7 +2,7 @@
 
 A keyboard-driven TUI for browsing your Claude Code session history.
 
-> **Status:** v0.7.0 — All planned phases plus the v0.7 cleanup and feature pass complete.
+> **Status:** v0.8.0 — All planned phases plus the v0.8 playbook complete.
 > The repo split (Phase 6) has happened — this is the standalone
 > `github.com/zpenka/lore` module. See [Phasing](#phasing) for status.
 >
@@ -287,6 +287,13 @@ Nothing else. Stay lean.
 | v0.7 | **Cleanup pass** — unified footers/headers, DRY filter logic, layout constants, dead-code removal, missing unit tests, scan warnings surfaced in list header | ✅ Done |
 | v0.7 | **Session bookmarks** — `m` toggles a `★`, `M` filters to bookmarks-only; persisted to `<cacheDir>/lore/bookmarks.json` | ✅ Done |
 | v0.7 | **Timeline activity heatmap** — `T` opens an 8-week × 7-day grid; `enter` filters list to a day | ✅ Done |
+| v0.8 | **Code split** — `model.go` → `keys_*.go`; `render.go` → `render_*.go`; `nav()` cursor helper; `ensureIndex()` method | ✅ Done |
+| v0.8 | **Background FTS5 sync** — `Init()` batches session load + index sync; header shows `indexing…` while in progress | ✅ Done |
+| v0.8 | **Resume `R` key** — `claude --resume <id>` via `tea.ExecProcess`; available in list and detail modes | ✅ Done |
+| v0.8 | **`LORE_CACHE_DIR` env var** — overrides the platform cache dir for index and bookmarks | ✅ Done |
+| v0.8 | **Search prefix syntax** — `project:<name>` and `branch:<name>` filter FTS5 and linear-scan results | ✅ Done |
+| v0.8 | **`LORE_PRICING_FILE` env override** — `go:embed pricing.json` with `sync.Once` loader; env path overrides embedded rates | ✅ Done |
+| v0.8 | **Fuzz targets in CI** — `FuzzParseSessionMetadata` and `FuzzParseTurnsFromJSONL`; non-blocking fuzz CI job (30s each) | ✅ Done |
 
 Beyond the phased work, several quality-of-life items also landed:
 inline fuzzy ranking for the `p` / `b` filters, a `?` help overlay with
@@ -302,7 +309,7 @@ search.
   `sessions_fts(session_path, content)` plus a `session_meta(path, mtime_ns)`
   table for incremental sync.
 - Cache DB lives under the platform-appropriate user cache dir
-  (`os.UserCacheDir()` → `lore/index.db`).
+  (`os.UserCacheDir()` → `lore/index.db`; override with `LORE_CACHE_DIR`).
 - `Index.Sync(projectsDir)` walks the projects dir, compares mtimes
   against `session_meta`, and re-indexes only changed files. Deleted
   files are pruned.
