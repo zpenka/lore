@@ -12,10 +12,10 @@ import (
 // call chain, this test surfaces the failure.
 func TestModelDispatch_AllModes(t *testing.T) {
 	modes := []struct {
-		name   string
-		mode   int
-		setup  func(m model) model
-		key    string
+		name  string
+		mode  int
+		setup func(m model) model
+		key   string
 	}{
 		{
 			name: "list mode j",
