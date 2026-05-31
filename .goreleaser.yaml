@@ -48,7 +48,7 @@ brews:
   - name: lore
     repository:
       owner: zpenka
-      name: homebrew-lore
+      name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/zpenka/lore
     description: Keyboard-driven TUI for browsing Claude Code session history
